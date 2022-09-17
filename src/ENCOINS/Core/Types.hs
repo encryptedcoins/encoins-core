@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE NoImplicitPrelude          #-}
+{-# LANGUAGE NumericUnderscores         #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
@@ -19,4 +20,4 @@ type FieldElement = BuiltinByteString
 
 -- TODO: implement this
 fromFieldElement :: FieldElement -> Integer
-fromFieldElement _ = 0
+fromFieldElement bs = lengthOfByteString bs * 1_000_000

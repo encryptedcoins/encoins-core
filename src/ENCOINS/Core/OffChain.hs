@@ -98,11 +98,13 @@ stakingWithdrawTx par (coins, v) = do
     let vStake = fromFieldElement v
     if vStake > 0
         then utxoProducedScriptTx (stakingValidatorHash par) Nothing (lovelaceValueOf vStake) ()
-        else do
+        else if vStake < 0
+            then do
             res <- utxoSpentScriptTx (\_ o -> _ciTxOutValue o `geq` lovelaceValueOf vStake && isAdaOnlyValue (_ciTxOutValue o))
                 (const . const $ stakingValidator par) (const . const $ ())
             case res of
-              Nothing     -> failTx (Just ()) $> ()
+              Nothing     -> failTx Nothing $> ()
               Just (_, o) -> 
                 let valChange = _ciTxOutValue o - lovelaceValueOf vStake
                 in utxoProducedScriptTx (stakingValidatorHash par) Nothing valChange ()
+            else return ()
