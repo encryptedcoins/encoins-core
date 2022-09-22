@@ -25,7 +25,7 @@ module ENCOINS.Core.OnChain where
 
 import           Ledger.Ada                           (lovelaceValueOf)
 import           Ledger.Tokens                        (token)
-import           Ledger.Value                         (AssetClass (..), geq)
+import           Ledger.Value                         (AssetClass (..), geq, noAdaValue)
 import           Plutus.Script.Utils.V2.Typed.Scripts (ValidatorTypes (..), TypedValidator,
                                                         mkTypedValidator, mkUntypedValidator, mkUntypedMintingPolicy)
 import           Plutus.V2.Ledger.Api
@@ -117,3 +117,28 @@ stakingTypedValidator par = mkTypedValidator @StakingADA
   where
     wrap = mkUntypedValidator @() @()
 
+------------------------------------- ENCOINS Ledger Validator -----------------------------------------
+
+data Ledgering
+instance ValidatorTypes Ledgering where
+  type instance DatumType Ledgering = ()
+  type instance RedeemerType Ledgering = ()
+
+{-# INLINABLE ledgerValidatorCheck #-}
+ledgerValidatorCheck :: () -> () -> ScriptContext -> Bool
+ledgerValidatorCheck _ _
+    ctx@ScriptContext{scriptContextTxInfo=info} = cond0
+  where
+    addr  = txOutAddress $ txInInfoResolved $ fromMaybe (error ()) $ findOwnInput ctx -- this script's address
+    vOut  = noAdaValue $ sum $ map txOutValue $ filterUtxoSpent info (\o -> txOutAddress o == addr)
+    vIn   = noAdaValue $ sum $ map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == addr)
+    vMint = txInfoMint $ scriptContextTxInfo ctx
+
+    cond0 = vIn == (vOut + vMint)
+
+ledgerTypedValidator :: TypedValidator Ledgering
+ledgerTypedValidator = mkTypedValidator @Ledgering
+    $$(PlutusTx.compile [|| ledgerValidatorCheck ||])
+    $$(PlutusTx.compile [|| wrap ||])
+  where
+    wrap = mkUntypedValidator @() @()

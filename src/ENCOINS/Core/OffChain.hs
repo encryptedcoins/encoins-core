@@ -12,7 +12,7 @@
 module ENCOINS.Core.OffChain where
 
 import           Control.Monad.State                            (State)
-import           Data.Functor                                   (($>))
+import           Data.Functor                                   (($>), (<$>))
 import           Ledger                                         (ChainIndexTxOut(..))
 import           Ledger.Ada                                     (lovelaceValueOf)
 import           Ledger.Tokens                                  (token)
@@ -22,20 +22,19 @@ import           Plutus.Contract.StateMachine.MintingPolarity   (MintingPolarity
 import           Plutus.Script.Utils.V2.Scripts                 (validatorHash, scriptCurrencySymbol)
 import           Plutus.Script.Utils.V2.Typed.Scripts           (ValidatorTypes (..), validatorScript, validatorAddress)
 import           Plutus.V2.Ledger.Api
-import           PlutusTx.Prelude
-import           Prelude                                        (undefined)
+import           PlutusTx.Prelude                               hiding ((<$>))
 
-import           ENCOINS.Core.Bulletproofs                      (Input, polarityToInteger)
+import           ENCOINS.Core.Bulletproofs                      (polarityToInteger)
 import           ENCOINS.Core.OnChain                           (EncoinsParams, EncoinsRedeemer, StakingParams, encoinName, encoinsPolicy,
-                                                                    stakingTypedValidator, beaconPolicy, beaconTokenName, beaconParams)
+                                                                    stakingTypedValidator, beaconPolicy, beaconTokenName, beaconParams, ledgerTypedValidator)
 import           ENCOINS.Core.Types                             (GroupElement, fromFieldElement)
 import           Scripts.OneShotCurrency                        (oneShotCurrencyMintTx)
-import           Scripts.Constraints                  
+import           Scripts.Constraints
 import           Types.TxConstructor                            (TxConstructor (..))
 
 
 type EncoinsTransaction = TxConstructor () Any (RedeemerType Any) (DatumType Any)
-type EncoinsTransactionBuilder = State EncoinsTransaction ()
+type EncoinsTransactionBuilder a = State EncoinsTransaction a
 
 ------------------------------------- Beacon Minting Policy --------------------------------------
 
@@ -48,10 +47,10 @@ beaconAssetClass ref = AssetClass (beaconCurrencySymbol ref, beaconTokenName)
 beaconToken :: TxOutRef -> Value
 beaconToken = token . beaconAssetClass
 
-beaconMintTx :: TxOutRef -> EncoinsTransactionBuilder
+beaconMintTx :: TxOutRef -> EncoinsTransactionBuilder ()
 beaconMintTx ref = oneShotCurrencyMintTx (beaconParams ref) $> ()
 
-beaconSendTx :: TxOutRef -> EncoinsTransactionBuilder
+beaconSendTx :: TxOutRef -> EncoinsTransactionBuilder ()
 beaconSendTx ref = utxoProducedScriptTx vh Nothing v ()
   where vh = stakingValidatorHash $ encoinsSymbol $ beaconCurrencySymbol ref
         v  = beaconToken ref + lovelaceValueOf 2_000_000
@@ -67,11 +66,21 @@ encoinsAssetClass par a = AssetClass (encoinsSymbol par, encoinName a)
 encoin :: EncoinsParams -> GroupElement -> Value
 encoin par a = token $ encoinsAssetClass par a
 
-encoinsMintTx :: EncoinsParams -> EncoinsRedeemer -> () -> EncoinsTransactionBuilder
-encoinsMintTx beaconSymb red@(addr, (coins, v), _) () = do
+encoinsBurnTx :: EncoinsParams -> GroupElement -> EncoinsTransactionBuilder ()
+encoinsBurnTx beaconSymb g = do
+    let f = \_ o -> _ciTxOutValue o `geq` encoin beaconSymb g
+    _ <- utxoSpentPublicKeyTx' f
+    _ <- utxoSpentScriptTx' f (const . const $ ledgerValidator) (const . const $ ())
+    return ()
+
+encoinsTx :: EncoinsParams -> EncoinsRedeemer -> EncoinsTransactionBuilder ()
+encoinsTx beaconSymb red@(addr, (coins, v), _) = do
     let beacon = token (AssetClass (beaconSymb, beaconTokenName))
+        coinsToBurn = filter (\(_, p) -> p == Burn) coins
+        val = lovelaceValueOf $ fromFieldElement v
+    mapM_ (encoinsBurnTx beaconSymb . fst) coinsToBurn
     tokensMintedTx (encoinsPolicy beaconSymb) red (sum $ map (\(g, p) -> scale (polarityToInteger p) (encoin beaconSymb g)) coins)
-    stakingWithdrawTx (encoinsSymbol beaconSymb) (coins, v)
+    stakingModifyTx (encoinsSymbol beaconSymb) val
     utxoReferencedTx (\_ o -> _ciTxOutAddress o == addr && _ciTxOutValue o `geq` beacon) $> ()
 
 ------------------------------------- ADA Staking Validator --------------------------------------
@@ -85,26 +94,51 @@ stakingValidatorHash = validatorHash . stakingValidator
 stakingValidatorAddress :: StakingParams -> Address
 stakingValidatorAddress = validatorAddress . stakingTypedValidator
 
--- TODO: implement this, simplify stakingWithdrawTx
-stakingSpendTx :: StakingParams -> Integer -> EncoinsTransactionBuilder
-stakingSpendTx _ _ = undefined
+-- Spend utxo greater than the given value.
+stakingSpendTx' :: StakingParams -> Value -> EncoinsTransactionBuilder (Maybe Value)
+stakingSpendTx' par val =
+    fmap (_ciTxOutValue . snd) <$> utxoSpentScriptTx' (\_ o -> _ciTxOutValue o `geq` val && isAdaOnlyValue (_ciTxOutValue o))
+        (const . const $ stakingValidator par) (const . const $ ())
 
--- TODO: add ENCOINS Ledger support here
-stakingWithdrawTx :: StakingParams -> Input -> EncoinsTransactionBuilder
-stakingWithdrawTx par (coins, v) = do
-    -- burn from the user's wallet
-    let coinsToBurn = filter (\(_, p) -> p == Burn) coins
-    mapM_ (\c -> utxoSpentPublicKeyTx (\_ o -> _ciTxOutValue o `geq` encoin par (fst c))) coinsToBurn
-    let vStake = fromFieldElement v
-    if vStake > 0
-        then utxoProducedScriptTx (stakingValidatorHash par) Nothing (lovelaceValueOf vStake) ()
-        else if vStake < 0
-            then do
-            res <- utxoSpentScriptTx (\_ o -> _ciTxOutValue o `geq` lovelaceValueOf vStake && isAdaOnlyValue (_ciTxOutValue o))
-                (const . const $ stakingValidator par) (const . const $ ())
-            case res of
-              Nothing     -> failTx Nothing $> ()
-              Just (_, o) -> 
-                let valChange = _ciTxOutValue o - lovelaceValueOf vStake
+-- Spend utxo greater than the given value. Fails if the utxo is not found.
+stakingSpendTx :: StakingParams -> Value -> EncoinsTransactionBuilder (Maybe Value)
+stakingSpendTx par val = stakingSpendTx' par val >>= failTx
+
+-- Combines several utxos into one.
+stakingCombineTx :: StakingParams -> Value -> Integer -> EncoinsTransactionBuilder ()
+stakingCombineTx par val 0 = utxoProducedScriptTx (stakingValidatorHash par) Nothing val ()
+stakingCombineTx par val n = do
+    res <- stakingSpendTx par zero
+    let val' = val + fromMaybe zero res
+    stakingCombineTx par val' (n-1)
+
+-- Modify the value locked in staking by the given value
+stakingModifyTx :: StakingParams -> Value -> EncoinsTransactionBuilder ()
+stakingModifyTx par val
+    | val `geq` zero = utxoProducedScriptTx (stakingValidatorHash par) Nothing val ()
+    | val == zero    = return ()
+    | otherwise      = do
+        res <- stakingSpendTx par val
+        case res of
+            Nothing     -> failTx Nothing $> ()
+            Just valSpent ->
+                let valChange = valSpent - val
                 in utxoProducedScriptTx (stakingValidatorHash par) Nothing valChange ()
-            else return ()
+
+------------------------------------- ENCOINS Ledger Validator -----------------------------------------
+
+ledgerValidator :: Validator
+ledgerValidator = validatorScript ledgerTypedValidator
+
+ledgerValidatorHash :: ValidatorHash
+ledgerValidatorHash = validatorHash ledgerValidator
+
+ledgerValidatorAddress :: Address
+ledgerValidatorAddress = validatorAddress ledgerTypedValidator
+
+ledgerTx :: EncoinsParams -> [GroupElement] -> EncoinsTransactionBuilder ()
+ledgerTx par gs =
+    let vals = map (encoin par) gs
+    in mapM_ (\val -> utxoSpentScriptTx (\_ o -> _ciTxOutValue o `geq` val)
+        (const . const $ ledgerValidator) (const . const $ ())) vals
+        
