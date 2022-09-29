@@ -34,8 +34,8 @@ import           PlutusTx                             (compile, applyCode, liftC
 import           PlutusTx.AssocMap                    (lookup)
 import           PlutusTx.Prelude
 
-import           ENCOINS.Core.Bulletproofs            (Input, Proof, verify, polarityToInteger)
-import           ENCOINS.Core.Types                   (GroupElement, fromFieldElement)
+import           ENCOINS.Core.Bulletproofs            (Input, Proof, verify)
+import           ENCOINS.Core.Types                   (GroupElement, polarityToInteger)
 import           Scripts.Constraints                  (utxoReferenced, tokensMinted, filterUtxoSpent, filterUtxoProduced, utxoSpent)
 import           Scripts.OneShotCurrency              (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
 
@@ -53,7 +53,7 @@ beaconParams ref = mkCurrency ref [(beaconTokenName, 1)]
 beaconPolicy :: TxOutRef -> MintingPolicy
 beaconPolicy = oneShotCurrencyPolicy . beaconParams
 
----------------------------------- ENCOINS Minting Policy --------------------------------------
+----------------------------------- ENCOINS Minting Policy ---------------------------------------
 
 -- Beacon currency symbol
 type EncoinsParams = CurrencySymbol
@@ -69,12 +69,11 @@ encoinsPolicyCheck beaconSymb (addr, input@(coins, v), proof)
     ctx@ScriptContext{scriptContextTxInfo=info} = cond0 && cond1 && cond2 && cond3
   where
       beacon = token (AssetClass (beaconSymb, beaconTokenName))
-      val    = fromFieldElement v
 
       cond0 = tokensMinted ctx $ fromList $ map (\(g, p) -> (encoinName g, polarityToInteger p)) coins
       cond1 = verify input proof
       cond2 = utxoSpent info (\o -> txOutAddress o == addr) || -- we do not need to check that we withdraw the correct value here
-        sum (map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == addr)) == lovelaceValueOf val
+        sum (map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == addr)) == lovelaceValueOf v
       cond3 = utxoReferenced info (\o -> txOutAddress o == addr && txOutValue o `geq` beacon)
 
 encoinsPolicy :: EncoinsParams -> MintingPolicy
@@ -102,12 +101,12 @@ stakingValidatorCheck encoinsSymb _ _
     addr = txOutAddress $ txInInfoResolved $ fromMaybe (error ()) $ findOwnInput ctx -- this script's address
     vOut = sum $ map txOutValue $ filterUtxoSpent info (\o -> txOutAddress o == addr)
     vIn  = sum $ map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == addr)
-    v    = lovelaceValueOf $ fromMaybe 0 $ do
+    val  = lovelaceValueOf $ fromMaybe 0 $ do
       red <- lookup purp $ txInfoRedeemers info
-      (_, (_, vFE), _) <- fromBuiltinData $ getRedeemer red :: Maybe EncoinsRedeemer
-      Just $ fromFieldElement vFE
+      (_, (_, v), _) <- fromBuiltinData $ getRedeemer red :: Maybe EncoinsRedeemer
+      Just v
 
-    cond0 = vIn == (vOut + v)
+    cond0 = vIn == (vOut + val)
 
 stakingTypedValidator :: StakingParams -> TypedValidator StakingADA
 stakingTypedValidator par = mkTypedValidator @StakingADA

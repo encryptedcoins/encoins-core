@@ -10,23 +10,18 @@
 
 module ENCOINS.Core.Bulletproofs where
 
-import           Plutus.Contract.StateMachine.MintingPolarity   (MintingPolarity (..))
-import           PlutusTx.Prelude                               (Bool (..), Integer, emptyByteString)
+import           PlutusTx.Prelude            (Bool (..), Integer)
 
-import           ENCOINS.Core.Types                             (GroupElement, FieldElement)
+import           ENCOINS.Core.Types          (GroupElement, MintingPolarity (..))
 
 
-type Input = ([(GroupElement, MintingPolarity)], FieldElement)
+type Input = ([(GroupElement, MintingPolarity)], Integer)
 
-{-# INLINABLE polarityToInteger #-}
-polarityToInteger :: MintingPolarity -> Integer
-polarityToInteger Mint = 1
-polarityToInteger Burn = -1
-
-type Proof = (GroupElement, FieldElement) -- TODO: correct these type
+-- TODO: implement this
+type Proof = ()
 
 fakeProof :: Proof
-fakeProof = (emptyByteString, emptyByteString)
+fakeProof = ()
 
 -- TODO: implement this
 {-# INLINABLE verify #-}

@@ -18,16 +18,14 @@ import           Ledger.Ada                                     (lovelaceValueOf
 import           Ledger.Tokens                                  (token)
 import           Ledger.Typed.Scripts                           (Any)
 import           Ledger.Value                                   (AssetClass (..), geq, isAdaOnlyValue)
-import           Plutus.Contract.StateMachine.MintingPolarity   (MintingPolarity(..))
 import           Plutus.Script.Utils.V2.Scripts                 (validatorHash, scriptCurrencySymbol)
 import           Plutus.Script.Utils.V2.Typed.Scripts           (ValidatorTypes (..), validatorScript, validatorAddress)
 import           Plutus.V2.Ledger.Api
 import           PlutusTx.Prelude                               hiding ((<$>))
 
-import           ENCOINS.Core.Bulletproofs                      (polarityToInteger)
 import           ENCOINS.Core.OnChain                           (EncoinsParams, EncoinsRedeemer, StakingParams, encoinName, encoinsPolicy,
                                                                     stakingTypedValidator, beaconPolicy, beaconTokenName, beaconParams, ledgerTypedValidator)
-import           ENCOINS.Core.Types                             (GroupElement, fromFieldElement)
+import           ENCOINS.Core.Types                             (GroupElement, MintingPolarity (..), polarityToInteger)
 import           Scripts.OneShotCurrency                        (oneShotCurrencyMintTx)
 import           Scripts.Constraints
 import           Types.TxConstructor                            (TxConstructor (..))
@@ -77,7 +75,7 @@ encoinsTx :: EncoinsParams -> EncoinsRedeemer -> EncoinsTransactionBuilder ()
 encoinsTx beaconSymb red@(addr, (coins, v), _) = do
     let beacon = token (AssetClass (beaconSymb, beaconTokenName))
         coinsToBurn = filter (\(_, p) -> p == Burn) coins
-        val = lovelaceValueOf $ fromFieldElement v
+        val = lovelaceValueOf v
     mapM_ (encoinsBurnTx beaconSymb . fst) coinsToBurn
     tokensMintedTx (encoinsPolicy beaconSymb) red (sum $ map (\(g, p) -> scale (polarityToInteger p) (encoin beaconSymb g)) coins)
     stakingModifyTx (encoinsSymbol beaconSymb) val
