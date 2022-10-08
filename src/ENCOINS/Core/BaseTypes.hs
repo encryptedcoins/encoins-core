@@ -2,6 +2,7 @@
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE NoImplicitPrelude          #-}
 {-# LANGUAGE NumericUnderscores         #-}
@@ -13,67 +14,89 @@
 
 module ENCOINS.Core.BaseTypes where
 
-import           PlutusTx         (makeIsDataIndexed)
+import           PlutusTx         (makeIsDataIndexed, unstableMakeIsData)
 import           PlutusTx.Prelude
-import           Prelude          (undefined)
 import qualified Prelude          as Haskell
 
 
-type FieldElement = BuiltinByteString
+newtype FieldElement = F Integer
+    deriving (Eq, Haskell.Eq, Haskell.Show)
 
--- TODO: implement this
-fieldZero :: FieldElement
-fieldZero = ""
+unstableMakeIsData ''FieldElement
 
--- TODO: implement this
-fieldOne :: FieldElement
-fieldOne = ""
-
--- TODO: implement this
-fieldTwo :: FieldElement
-fieldTwo = ""
-
--- TODO: implement this
-fieldAdd :: FieldElement -> FieldElement -> FieldElement
-fieldAdd e1 _ = e1
-
--- TODO: implement this
-fieldSub :: FieldElement -> FieldElement -> FieldElement
-fieldSub e1 _ = e1
-
--- TODO: implement this
-fieldNegate :: FieldElement -> FieldElement
-fieldNegate e = e
-
--- TODO: implement this
-fieldMul :: FieldElement -> FieldElement -> FieldElement
-fieldMul e1 _ = e1
-
--- TODO: implement this
-fieldInverse :: FieldElement -> FieldElement
-fieldInverse e = e
-
-
--- TODO: implement this
 {-# INLINABLE toFieldElement #-}
 toFieldElement :: Integer -> FieldElement
-toFieldElement = undefined
+toFieldElement = F
 
--- TODO: implement this
 {-# INLINABLE fromFieldElement #-}
 fromFieldElement :: FieldElement -> Integer
-fromFieldElement = undefined
+fromFieldElement (F a) = a
+
+{-# INLINABLE fieldPrime #-}
+fieldPrime :: Integer
+fieldPrime = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001
+
+instance AdditiveSemigroup FieldElement where
+    {-# INLINABLE (+) #-}
+    (+) (F a) (F b) = F $ modulo (a + b) fieldPrime
+
+instance AdditiveGroup FieldElement where
+    {-# INLINABLE (-) #-}
+    (-) (F a) (F b) = F $ modulo (a - b) fieldPrime
+
+instance AdditiveMonoid FieldElement where
+    {-# INLINABLE zero #-}
+    zero = F 0
+
+instance MultiplicativeSemigroup FieldElement where
+    {-# INLINABLE (*) #-}
+    (*) (F a) (F b) = F $ modulo (a * b) fieldPrime
+
+instance MultiplicativeMonoid FieldElement where
+    {-# INLINABLE one #-}
+    one = F 1
+
+instance Semigroup FieldElement where
+    {-# INLINABLE (<>) #-}
+    (<>) = (*)
+
+instance Monoid FieldElement where
+    {-# INLINABLE mempty #-}
+    mempty = one
+
+instance Group FieldElement where
+    {-# INLINABLE inv #-}
+    inv (F a) = F (modulo (snd $ f (a, 1) (fieldPrime, 0)) fieldPrime)
+      where
+        f (x, y) (x', y')
+                    | x' == zero = (x, y)
+                    | otherwise  = f (x', y') (x - q * x', y - q * y')
+          where q = divide x x'
 
 type GroupElement = BuiltinByteString
 
+-- TODO: implement this
+{-# INLINABLE toGroupElement #-}
+toGroupElement :: BuiltinByteString -> GroupElement
+toGroupElement _ = ""
+
+-- TODO: implement this
+{-# INLINABLE fromGroupElement #-}
+fromGroupElement :: GroupElement -> BuiltinByteString
+fromGroupElement _ = ""
+
+-- TODO: implement this
+{-# INLINABLE groupIdentity #-}
 groupIdentity :: BuiltinByteString
 groupIdentity = ""
 
 -- TODO: implement this
+{-# INLINABLE groupMul #-}
 groupMul :: GroupElement -> GroupElement -> GroupElement
 groupMul g _ = g
 
 -- TODO: implement this
+{-# INLINABLE groupExp #-}
 groupExp :: GroupElement -> FieldElement -> GroupElement
 groupExp g _ = g
 
