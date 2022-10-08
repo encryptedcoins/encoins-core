@@ -25,10 +25,11 @@ import           PlutusTx.Prelude                               hiding ((<$>))
 
 import           ENCOINS.Core.OnChain                           (EncoinsParams, EncoinsRedeemer, StakingParams, encoinName, encoinsPolicy,
                                                                     stakingTypedValidator, beaconPolicy, beaconTokenName, beaconParams, ledgerTypedValidator)
-import           ENCOINS.Core.Types                             (GroupElement, MintingPolarity (..), polarityToInteger)
+import           ENCOINS.Core.BaseTypes                         (GroupElement, MintingPolarity (..), polarityToInteger)
 import           Scripts.OneShotCurrency                        (oneShotCurrencyMintTx)
 import           Scripts.Constraints
 import           Types.TxConstructor                            (TxConstructor (..))
+import ENCOINS.Core.Bulletproofs
 
 
 type EncoinsTransaction = TxConstructor () Any (RedeemerType Any) (DatumType Any)
@@ -72,12 +73,12 @@ encoinsBurnTx beaconSymb g = do
     return ()
 
 encoinsTx :: EncoinsParams -> EncoinsRedeemer -> EncoinsTransactionBuilder ()
-encoinsTx beaconSymb red@(addr, (coins, v), _) = do
+encoinsTx beaconSymb red@(addr, inputs, _, v) = do
     let beacon = token (AssetClass (beaconSymb, beaconTokenName))
-        coinsToBurn = filter (\(_, p) -> p == Burn) coins
+        coinsToBurn = filter (\(Input _ p) -> p == Burn) inputs
         val = lovelaceValueOf v
-    mapM_ (encoinsBurnTx beaconSymb . fst) coinsToBurn
-    tokensMintedTx (encoinsPolicy beaconSymb) red (sum $ map (\(g, p) -> scale (polarityToInteger p) (encoin beaconSymb g)) coins)
+    mapM_ (encoinsBurnTx beaconSymb . inputCommit) coinsToBurn
+    tokensMintedTx (encoinsPolicy beaconSymb) red (sum $ map (\(Input g p) -> scale (polarityToInteger p) (encoin beaconSymb g)) inputs)
     stakingModifyTx (encoinsSymbol beaconSymb) val
     utxoReferencedTx (\_ o -> _ciTxOutAddress o == addr && _ciTxOutValue o `geq` beacon) $> ()
 

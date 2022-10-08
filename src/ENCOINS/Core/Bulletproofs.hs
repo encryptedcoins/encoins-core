@@ -7,23 +7,12 @@
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
 
+module ENCOINS.Core.Bulletproofs 
+    (module ENCOINS.Core.Bulletproofs.Prove, module ENCOINS.Core.Bulletproofs.Types,
+     module ENCOINS.Core.Bulletproofs.Utils, module ENCOINS.Core.Bulletproofs.Verify)
+    where
 
-module ENCOINS.Core.Bulletproofs where
-
-import           PlutusTx.Prelude            (Bool (..), Integer)
-
-import           ENCOINS.Core.Types          (GroupElement, MintingPolarity (..))
-
-
-type Input = ([(GroupElement, MintingPolarity)], Integer)
-
--- TODO: implement this
-type Proof = ()
-
-fakeProof :: Proof
-fakeProof = ()
-
--- TODO: implement this
-{-# INLINABLE verify #-}
-verify :: Input -> Proof -> Bool
-verify _ _ = True
+import           ENCOINS.Core.Bulletproofs.Prove
+import           ENCOINS.Core.Bulletproofs.Types
+import           ENCOINS.Core.Bulletproofs.Utils
+import           ENCOINS.Core.Bulletproofs.Verify

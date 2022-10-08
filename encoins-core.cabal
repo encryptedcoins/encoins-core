@@ -28,10 +28,14 @@ common lang
 library
     import: lang
     exposed-modules:
+      ENCOINS.Core.BaseTypes
       ENCOINS.Core.Bulletproofs
+      ENCOINS.Core.Bulletproofs.Prove
+      ENCOINS.Core.Bulletproofs.Types
+      ENCOINS.Core.Bulletproofs.Utils
+      ENCOINS.Core.Bulletproofs.Verify
       ENCOINS.Core.OffChain
       ENCOINS.Core.OnChain
-      ENCOINS.Core.Types
     build-depends:
       base                          >= 4.9 && < 5,
       base16-bytestring                      -any,
