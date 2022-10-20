@@ -80,7 +80,7 @@ encoinsTx beaconSymb red@(addr, inputs, _, v) = do
     mapM_ (encoinsBurnTx beaconSymb . inputCommit) coinsToBurn
     tokensMintedTx (encoinsPolicy beaconSymb) red (sum $ map (\(Input g p) -> scale (polarityToInteger p) (encoin beaconSymb g)) inputs)
     stakingModifyTx (encoinsSymbol beaconSymb) val
-    utxoReferencedTx (\_ o -> _ciTxOutAddress o == addr && _ciTxOutValue o `geq` beacon) $> ()
+    -- utxoReferencedTx (\_ o -> _ciTxOutAddress o == addr && _ciTxOutValue o `geq` beacon) $> ()
 
 ------------------------------------- ADA Staking Validator --------------------------------------
 

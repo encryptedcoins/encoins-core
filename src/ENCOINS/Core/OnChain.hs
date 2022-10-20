@@ -68,15 +68,19 @@ encoinName = TokenName
 
 encoinsPolicyCheck :: EncoinsParams -> EncoinsRedeemer -> ScriptContext -> Bool
 encoinsPolicyCheck beaconSymb (addr, inputs, proof, v)
-    ctx@ScriptContext{scriptContextTxInfo=info} = cond0 && cond1 && cond2 && cond3
+    ctx@ScriptContext{scriptContextTxInfo=info} = 
+      cond0
+      -- && cond1
+      && cond2
+      -- && cond3
   where
-      beacon = token (AssetClass (beaconSymb, beaconTokenName))
+      -- beacon = token (AssetClass (beaconSymb, beaconTokenName))
 
       cond0 = tokensMinted ctx $ fromList $ map (\(Input g p) -> (encoinName g, polarityToInteger p)) inputs
-      cond1 = verify bulletproofSetup inputs proof
+      -- cond1 = verify bulletproofSetup inputs proof
       cond2 = utxoSpent info (\o -> txOutAddress o == addr) || -- we do not need to check that we withdraw the correct value here
         sum (map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == addr)) == lovelaceValueOf v
-      cond3 = utxoReferenced info (\o -> txOutAddress o == addr && txOutValue o `geq` beacon)
+      -- cond3 = utxoReferenced info (\o -> txOutAddress o == addr && txOutValue o `geq` beacon)
 
 encoinsPolicy :: EncoinsParams -> MintingPolicy
 encoinsPolicy par = mkMintingPolicyScript $
