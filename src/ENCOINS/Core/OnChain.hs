@@ -64,7 +64,7 @@ type EncoinsRedeemer = (Address, Inputs, Proof, Integer)
 
 {-# INLINABLE encoinName #-}
 encoinName :: GroupElement -> TokenName
-encoinName = TokenName
+encoinName = TokenName . fromGroupElement
 
 encoinsPolicyCheck :: EncoinsParams -> EncoinsRedeemer -> ScriptContext -> Bool
 encoinsPolicyCheck beaconSymb (addr, inputs, proof, v)

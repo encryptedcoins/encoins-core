@@ -16,8 +16,13 @@ import           PlutusTx               (unstableMakeIsData)
 import           PlutusTx.Prelude       (Integer)
 import qualified Prelude                as Haskell
 
+import           Crypto                 (Q, Zp)
 import           ENCOINS.Core.BaseTypes (GroupElement, FieldElement, MintingPolarity)
 
+-- NOTE: demo implementation
+-- TODO: remove this later
+unstableMakeIsData ''Q
+unstableMakeIsData ''Zp
 
 data Input = Input
     {

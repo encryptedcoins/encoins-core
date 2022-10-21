@@ -18,6 +18,9 @@ import           PlutusTx         (makeIsDataIndexed, unstableMakeIsData)
 import           PlutusTx.Prelude
 import qualified Prelude          as Haskell
 
+import           Crypto           (T1, toZp, fromZp, addJ, mulJ)
+import           Utils.ByteString (byteStringToInteger, integerToByteString)
+
 
 newtype FieldElement = F Integer
     deriving (Eq, Haskell.Eq, Haskell.Show)
@@ -73,32 +76,46 @@ instance Group FieldElement where
                     | otherwise  = f (x', y') (x - q * x', y - q * y')
           where q = divide x x'
 
-type GroupElement = BuiltinByteString
+-- NOTE: demo implementation
+-- TODO: implement this
+type GroupElement = (T1, T1, T1)
 
+instance Eq GroupElement where
+    (==) (x1, x2, x3) (y1, y2, y3) = x1 == y1 && x2 == y2 && x3 == y3
+
+-- NOTE: demo implementation
 -- TODO: implement this
 {-# INLINABLE toGroupElement #-}
 toGroupElement :: BuiltinByteString -> GroupElement
-toGroupElement _ = ""
+toGroupElement bs = (x, y, z)
+    where
+        x = toZp $ byteStringToInteger $ takeByteString 48 bs
+        y = toZp $ byteStringToInteger $ takeByteString 48 $ dropByteString 48 bs
+        z = toZp $ byteStringToInteger $ takeByteString 48 $ dropByteString 96 bs
 
+-- NOTE: demo implementation
 -- TODO: implement this
 {-# INLINABLE fromGroupElement #-}
 fromGroupElement :: GroupElement -> BuiltinByteString
-fromGroupElement _ = ""
+fromGroupElement (x, y, z) = foldl appendByteString emptyByteString $ map (integerToByteString . fromZp) [x, y, z]
 
+-- NOTE: demo implementation
 -- TODO: implement this
 {-# INLINABLE groupIdentity #-}
-groupIdentity :: BuiltinByteString
-groupIdentity = ""
+groupIdentity :: GroupElement
+groupIdentity = (one, one, zero)
 
+-- NOTE: demo implementation
 -- TODO: implement this
 {-# INLINABLE groupMul #-}
 groupMul :: GroupElement -> GroupElement -> GroupElement
-groupMul g _ = g
+groupMul = addJ
 
+-- NOTE: demo implementation
 -- TODO: implement this
 {-# INLINABLE groupExp #-}
 groupExp :: GroupElement -> FieldElement -> GroupElement
-groupExp g _ = g
+groupExp g = mulJ g . fromFieldElement
 
 data MintingPolarity = Mint | Burn
     deriving (Haskell.Eq, Haskell.Show)
