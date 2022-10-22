@@ -32,7 +32,7 @@ import           Types.TxConstructor                            (TxConstructor (
 import ENCOINS.Core.Bulletproofs
 
 
-type EncoinsTransaction = TxConstructor () Any (RedeemerType Any) (DatumType Any)
+type EncoinsTransaction = TxConstructor Any (RedeemerType Any) (DatumType Any)
 type EncoinsTransactionBuilder a = State EncoinsTransaction a
 
 ------------------------------------- Beacon Minting Policy --------------------------------------
