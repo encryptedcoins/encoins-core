@@ -16,12 +16,12 @@
 
 module ENCOINS.Core.BaseTypes where
 
-import           PlutusTx         (makeIsDataIndexed, unstableMakeIsData)
+import           PlutusTx             (makeIsDataIndexed, unstableMakeIsData)
 import           PlutusTx.Prelude
-import qualified Prelude          as Haskell
+import qualified Prelude              as Haskell
 
-import           Crypto           (T1, toZp, fromZp, addJ, mulJ)
-import           Utils.ByteString (byteStringToInteger, integerToByteString)
+import           Crypto               (T1, toZp, fromZp, addJ, mulJ, dblJ, fromXJ, CurvePoint (..), fromJ)
+import           Utils.ByteString     (byteStringToInteger, integerToByteString)
 
 
 newtype FieldElement = F Integer
@@ -88,18 +88,19 @@ instance Eq GroupElement where
 -- NOTE: demo implementation
 -- TODO: implement this
 {-# INLINABLE toGroupElement #-}
-toGroupElement :: BuiltinByteString -> GroupElement
-toGroupElement bs = (x, y, z)
-    where
-        x = toZp $ byteStringToInteger $ takeByteString 48 bs
-        y = toZp $ byteStringToInteger $ takeByteString 48 $ dropByteString 48 bs
-        z = toZp $ byteStringToInteger $ takeByteString 48 $ dropByteString 96 bs
+toGroupElement :: BuiltinByteString -> Maybe GroupElement
+toGroupElement bs = if n == q then Just (one, one, zero) else fromXJ $ toZp n
+    where n = byteStringToInteger bs
+          q = 0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab
 
 -- NOTE: demo implementation
 -- TODO: implement this
 {-# INLINABLE fromGroupElement #-}
 fromGroupElement :: GroupElement -> BuiltinByteString
-fromGroupElement (x, y, z) = foldl appendByteString emptyByteString $ map (integerToByteString . fromZp) [x, y, z]
+fromGroupElement g = integerToByteString n
+    where n = case fromJ g of
+            CP x _ -> fromZp x
+            O      -> 0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab
 
 -- NOTE: demo implementation
 -- TODO: implement this
@@ -111,7 +112,9 @@ groupIdentity = (one, one, zero)
 -- TODO: implement this
 {-# INLINABLE groupMul #-}
 groupMul :: GroupElement -> GroupElement -> GroupElement
-groupMul = addJ
+groupMul g1 g2
+    | g1 == g2  = dblJ g1
+    | otherwise = addJ g1 g2
 
 -- NOTE: demo implementation
 -- TODO: implement this
