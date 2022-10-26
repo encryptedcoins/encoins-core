@@ -1,4 +1,6 @@
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveAnyClass             #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
@@ -16,6 +18,8 @@
 
 module ENCOINS.Core.BaseTypes where
 
+import           Data.Aeson       (FromJSON, ToJSON)
+import           GHC.Generics     (Generic)
 import           PlutusTx         (makeIsDataIndexed, unstableMakeIsData)
 import           PlutusTx.Prelude
 import qualified Prelude          as Haskell
@@ -120,7 +124,7 @@ groupExp :: GroupElement -> FieldElement -> GroupElement
 groupExp g = mulJ g . fromFieldElement
 
 data MintingPolarity = Mint | Burn
-    deriving (Haskell.Eq, Haskell.Show)
+    deriving (Haskell.Eq, Haskell.Show, Generic, FromJSON, ToJSON)
 
 instance Eq MintingPolarity where
     Mint == Mint = True
