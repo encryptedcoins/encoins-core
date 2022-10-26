@@ -29,7 +29,10 @@ import           Utils.ByteString     (byteStringToInteger, integerToByteString)
 
 
 newtype FieldElement = F Integer
-    deriving (Eq, Haskell.Eq, Haskell.Show)
+    deriving (Haskell.Eq, Haskell.Show)
+
+instance Eq FieldElement where
+    (==) (F a) (F b) = a == b
 
 unstableMakeIsData ''FieldElement
 
