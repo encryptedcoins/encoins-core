@@ -16,14 +16,14 @@ import           ENCOINS.Core.Bulletproofs.Utils
 import           ENCOINS.Core.Bulletproofs.Types
 
 {-# INLINABLE verify #-}
-verify :: BulletproofSetup -> Inputs -> Proof -> Bool
-verify (BulletproofSetup h g hs gs n) inputs (Proof commitA commitS commitT1 commitT2 taux mu tHat lx rx) = cond1 && cond2 && cond3
+verify :: BulletproofSetup -> BulletproofParams -> Integer -> Inputs -> Proof -> Bool
+verify (BulletproofSetup h g hs gs n) bp val inputs (Proof commitA commitS commitT1 commitT2 taux mu tHat lx rx) = cond1 && cond2 && cond3
     where
         commitVs = map inputCommit inputs
         ps       = map inputPolarity inputs
         m        = length commitVs
-        (y, z)   = challenge commitA commitS
-        (x, _)   = challenge commitT1 commitT2
+        (y, z)   = challenge [commitA, commitS, bp]
+        (x, _)   = challenge [commitT1, commitT2]
         (zs, z') = powersOfZ z m
         twos     = powers (F 2) n
         x2       = x * x
@@ -34,7 +34,8 @@ verify (BulletproofSetup h g hs gs n) inputs (Proof commitA commitS commitT1 com
         lam      = zipWith (+) lam1 lam2
         commitP  = foldl groupMul groupIdentity (commitA : groupExp commitS x : map (`groupExp` negate z) gs ++ zipWith groupExp hs' lam)
         s        = sum twos
-        delta    = ((z - z*z) * sum ys) - sum (map (* s) zs) - (F m * z' * s)
+        psSum    = F $ sum $ map polarityToInteger ps
+        delta    = ((z - z*z) * sum ys) - sum (map (* s) zs) - (z * z' * s * psSum) + z' * F val
 
         cond1    = groupExp g tHat `groupMul` groupExp h taux ==
             groupExp g delta

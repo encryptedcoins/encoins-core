@@ -26,10 +26,10 @@ import           PlutusTx.Prelude                               hiding ((<$>))
 import           ENCOINS.Core.OnChain                           (EncoinsParams, EncoinsRedeemer, StakingParams, encoinName, encoinsPolicy,
                                                                     stakingTypedValidator, beaconPolicy, beaconTokenName, beaconParams, ledgerTypedValidator)
 import           ENCOINS.Core.BaseTypes                         (GroupElement, MintingPolarity (..), polarityToInteger)
+import           ENCOINS.Core.Bulletproofs
 import           Scripts.OneShotCurrency                        (oneShotCurrencyMintTx)
 import           Scripts.Constraints
 import           Types.TxConstructor                            (TxConstructor (..))
-import ENCOINS.Core.Bulletproofs
 
 
 type EncoinsTransaction = TxConstructor Any (RedeemerType Any) (DatumType Any)
@@ -72,8 +72,9 @@ encoinsBurnTx beaconSymb g = do
     _ <- utxoSpentScriptTx' f (const . const $ ledgerValidator) (const . const $ ())
     return ()
 
+-- TODO: finish implementation
 encoinsTx :: EncoinsParams -> EncoinsRedeemer -> EncoinsTransactionBuilder ()
-encoinsTx beaconSymb red@(addr, inputs, _, v) = do
+encoinsTx beaconSymb red@((v, addr, _, _), inputs, _) = do
     let beacon = token (AssetClass (beaconSymb, beaconTokenName))
         coinsToBurn = filter (\(Input _ p) -> p == Burn) inputs
         val = lovelaceValueOf v

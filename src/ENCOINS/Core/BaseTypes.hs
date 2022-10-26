@@ -11,6 +11,8 @@
 {-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
 
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 
 module ENCOINS.Core.BaseTypes where
 

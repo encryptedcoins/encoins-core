@@ -19,10 +19,10 @@ import           Utils.ByteString        (byteStringToInteger)
 ----------------------------------- Challenge ---------------------------------------
 
 {-# INLINABLE challenge #-}
-challenge :: GroupElement -> GroupElement -> (FieldElement, FieldElement)
-challenge g1 g2 = (f1, f2)
+challenge :: [GroupElement] -> (FieldElement, FieldElement)
+challenge gs = (f1, f2)
     where
-        bs = sha2_256 $ fromGroupElement g1 `appendByteString` fromGroupElement g2
+        bs = sha2_256 $ foldl appendByteString emptyByteString $ map fromGroupElement gs
         f1 = toFieldElement $ byteStringToInteger bs
         f2 = toFieldElement $ byteStringToInteger $ sha2_256 bs
 

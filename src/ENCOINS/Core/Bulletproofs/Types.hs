@@ -24,26 +24,13 @@ import           ENCOINS.Core.BaseTypes (GroupElement, FieldElement, MintingPola
 unstableMakeIsData ''Q
 unstableMakeIsData ''Zp
 
-data Input = Input
-    {
-        inputCommit   :: GroupElement,
-        inputPolarity :: MintingPolarity
-    }
-    deriving (Haskell.Eq, Haskell.Show)
-
-unstableMakeIsData ''Input
-
-type Inputs = [Input]
-
-data Proof = Proof GroupElement GroupElement GroupElement GroupElement FieldElement FieldElement FieldElement [FieldElement] [FieldElement]
-    deriving (Haskell.Eq, Haskell.Show)
-
-unstableMakeIsData ''Proof
-
 data BulletproofSetup = BulletproofSetup GroupElement GroupElement [GroupElement] [GroupElement] Integer
     deriving (Haskell.Eq, Haskell.Show)
 
 unstableMakeIsData ''BulletproofSetup
+
+-- A type that encodes public input parameters: deposit/withdrawal address public key and validity interval
+type BulletproofParams = GroupElement
 
 data Secret = Secret
     {
@@ -60,3 +47,19 @@ data Randomness = Randomness FieldElement [FieldElement] [FieldElement] FieldEle
     deriving (Haskell.Eq, Haskell.Show)
 
 unstableMakeIsData ''Randomness
+
+data Input = Input
+    {
+        inputCommit   :: GroupElement,
+        inputPolarity :: MintingPolarity
+    }
+    deriving (Haskell.Eq, Haskell.Show)
+
+unstableMakeIsData ''Input
+
+type Inputs = [Input]
+
+data Proof = Proof GroupElement GroupElement GroupElement GroupElement FieldElement FieldElement FieldElement [FieldElement] [FieldElement]
+    deriving (Haskell.Eq, Haskell.Show)
+
+unstableMakeIsData ''Proof

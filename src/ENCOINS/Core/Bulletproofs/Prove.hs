@@ -17,9 +17,10 @@ import           ENCOINS.Core.Bulletproofs.Types
 import           ENCOINS.Core.Bulletproofs.Utils
 
 -- TODO: add data correctness checks
-bulletproof :: BulletproofSetup -> Secrets -> Randomness -> (Inputs, Proof, Integer)
-bulletproof (BulletproofSetup h g hs gs n) secrets (Randomness alpha sL sR rho tau1 tau2) = (zipWith Input commitVs ps,
-        Proof commitA commitS commitT1 commitT2 taux mu tHat lx rx, val)
+-- TODO: challenge must depend on the withdrawal PaymentPubKeyHash to avoid front-running
+bulletproof :: BulletproofSetup -> BulletproofParams -> Secrets -> Randomness -> (Integer, Inputs, Proof)
+bulletproof (BulletproofSetup h g hs gs n) bp secrets (Randomness alpha sL sR rho tau1 tau2) = (val, zipWith Input commitVs ps,
+        Proof commitA commitS commitT1 commitT2 taux mu tHat lx rx)
     where
         m        = length secrets
         gammas   = map secretGamma secrets
@@ -29,7 +30,7 @@ bulletproof (BulletproofSetup h g hs gs n) secrets (Randomness alpha sL sR rho t
         aR       = concatMap (fromBits . map (\q -> q - 1) . toBits) vs
         commitA  = foldl groupMul groupIdentity (groupExp h alpha : zipWith groupExp gs aL ++ zipWith groupExp hs aR)
         commitS  = foldl groupMul groupIdentity (groupExp h rho : zipWith groupExp gs sL ++ zipWith groupExp hs sR)
-        (y, z)   = challenge commitA commitS
+        (y, z)   = challenge [commitA, commitS, bp]
         (zs, z') = powersOfZ z m
         l        = (map (\a -> a - z) aL, sL)
         r        = (zipWith (+) (zipWith (*) (powers y (n * m)) (map (+ z) aR))
@@ -38,7 +39,7 @@ bulletproof (BulletproofSetup h g hs gs n) secrets (Randomness alpha sL sR rho t
         (_, t1, t2) = polyProduct l r
         commitT1 = groupMul (groupExp g t1) (groupExp g tau1)
         commitT2 = groupMul (groupExp g t2) (groupExp g tau2)
-        (x, _)   = challenge commitT1 commitT2
+        (x, _)   = challenge [commitT1, commitT2]
         x2       = x * x
         lx       = polyEvaluate l x
         rx       = polyEvaluate r x
