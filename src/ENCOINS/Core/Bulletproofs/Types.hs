@@ -1,4 +1,6 @@
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveAnyClass             #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
@@ -12,6 +14,8 @@
 
 module ENCOINS.Core.Bulletproofs.Types where
 
+import           Data.Aeson             (FromJSON, ToJSON)
+import           GHC.Generics           (Generic)
 import           PlutusTx               (unstableMakeIsData)
 import           PlutusTx.Prelude       (Integer)
 import qualified Prelude                as Haskell
@@ -53,7 +57,7 @@ data Input = Input
         inputCommit   :: GroupElement,
         inputPolarity :: MintingPolarity
     }
-    deriving (Haskell.Eq, Haskell.Show)
+    deriving (Haskell.Eq, Haskell.Show, Generic, FromJSON, ToJSON)
 
 unstableMakeIsData ''Input
 
