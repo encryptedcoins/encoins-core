@@ -17,7 +17,6 @@ import           ENCOINS.Core.Bulletproofs.Types
 import           ENCOINS.Core.Bulletproofs.Utils
 
 -- TODO: add data correctness checks
--- TODO: challenge must depend on the withdrawal PaymentPubKeyHash to avoid front-running
 bulletproof :: BulletproofSetup -> BulletproofParams -> Secrets -> Randomness -> (Integer, Inputs, Proof)
 bulletproof (BulletproofSetup h g hs gs n) bp secrets (Randomness alpha sL sR rho tau1 tau2) = (val, zipWith Input commitVs ps,
         Proof commitA commitS commitT1 commitT2 taux mu tHat lx rx)

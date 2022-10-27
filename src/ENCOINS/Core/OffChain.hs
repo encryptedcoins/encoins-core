@@ -15,7 +15,7 @@ import           Control.Monad.State                            (State)
 import           Data.Functor                                   (($>), (<$>))
 import           Ledger                                         (ChainIndexTxOut(..))
 import           Ledger.Ada                                     (lovelaceValueOf)
-import           Ledger.Address                                 (PaymentPubKeyHash)
+import           Ledger.Address                                 (PaymentPubKeyHash (..))
 import           Ledger.Tokens                                  (token)
 import           Ledger.Typed.Scripts                           (Any)
 import           Ledger.Value                                   (AssetClass (..), geq, isAdaOnlyValue)
@@ -74,15 +74,16 @@ encoinsBurnTx beaconSymb g = do
     return ()
 
 -- TODO: finish implementation
-encoinsTx :: EncoinsParams -> EncoinsRedeemer -> PaymentPubKeyHash -> EncoinsTransactionBuilder ()
-encoinsTx beaconSymb red@((v, addr, _, _), inputs, _) pkh = do
+encoinsTx :: EncoinsParams -> EncoinsRedeemer -> EncoinsTransactionBuilder ()
+encoinsTx beaconSymb red@((v, addr, pkh, (tFrom, tTo)), inputs, _)  = do
     let beacon = token (AssetClass (beaconSymb, beaconTokenName))
         coinsToBurn = filter (\(Input _ p) -> p == Burn) inputs
         val = lovelaceValueOf v
     mapM_ (encoinsBurnTx beaconSymb . inputCommit) coinsToBurn
     tokensMintedTx (encoinsPolicy beaconSymb) red (sum $ map (\(Input g p) -> scale (polarityToInteger p) (encoin beaconSymb g)) inputs)
     stakingModifyTx (encoinsSymbol beaconSymb) val
-    mustBeSignedByTx pkh
+    validatedInIntervalTx tFrom tTo
+    mustBeSignedByTx $ PaymentPubKeyHash pkh
     -- utxoReferencedTx (\_ o -> _ciTxOutAddress o == addr && _ciTxOutValue o `geq` beacon) $> ()
 
 ------------------------------------- ADA Staking Validator --------------------------------------

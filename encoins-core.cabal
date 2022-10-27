@@ -83,3 +83,32 @@ library
       uuid                                   -any
 
     hs-source-dirs: src
+
+test-suite encoins-core-test
+  Type:                 exitcode-stdio-1.0
+  Default-Language:     Haskell2010
+  Hs-Source-Dirs:       test
+  Ghc-Options:          -rtsopts
+  Main-Is:              Main.hs
+  Other-Modules:
+  Build-Depends:
+    base                                   -any,
+    aeson                                  -any,
+    bytestring                             -any,
+    containers                             -any,
+    encoins-core                           -any,
+    generic-arbitrary                      -any,
+    plutus-common                          -any,
+    plutus-contract                        -any,
+    plutus-chain-index                     -any,
+    plutus-chain-index-core                -any,
+    plutus-tx-plugin                       -any,
+    plutus-tx                              -any,
+    plutus-ledger                          -any,
+    plutus-ledger-api                      -any,
+    plutus-ledger-constraints              -any,
+    plutus-script-utils                    -any,
+    plutus-use-cases                       -any,
+    QuickCheck                             -any,
+    random                                 -any,
+    text                                   -any
