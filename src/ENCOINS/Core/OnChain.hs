@@ -76,7 +76,7 @@ encoinsPolicyCheck beaconSymb ((v, addr, pkh, (tFrom, tTo)), inputs, proof)
       -- && cond1
       && cond2
       -- && cond3
-      && cond4
+      -- && cond4
       && cond5
   where
       beacon = token (AssetClass (beaconSymb, beaconTokenName))
@@ -86,7 +86,7 @@ encoinsPolicyCheck beaconSymb ((v, addr, pkh, (tFrom, tTo)), inputs, proof)
       -- cond1 = verify bulletproofSetup (toGroupElement bp) v inputs proof
       cond2 = sum (map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == addr)) `geq` lovelaceValueOf (abs v)
       -- cond3 = utxoReferenced info (\o -> txOutAddress o == addr && txOutValue o `geq` beacon) || (v < 0)
-      cond4 = validatedInInterval info tFrom tTo
+      -- cond4 = validatedInInterval info tFrom tTo
       cond5 = pkh `elem` txInfoSignatories info
 
 encoinsPolicy :: EncoinsParams -> MintingPolicy
