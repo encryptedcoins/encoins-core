@@ -14,13 +14,15 @@
 
 module ENCOINS.Core.Bulletproofs.Types where
 
-import           Data.Aeson             (FromJSON, ToJSON)
-import           GHC.Generics           (Generic)
-import           PlutusTx               (unstableMakeIsData)
-import           PlutusTx.Prelude       (Integer)
-import qualified Prelude                as Haskell
+import           Data.Aeson                         (FromJSON, ToJSON)
+import           GHC.Generics                       (Generic)
+import           PlutusTx                           (unstableMakeIsData)
+import           PlutusTx.Prelude                   (Integer)
+import qualified Prelude                            as Haskell
+import           Test.QuickCheck                    (Arbitrary(..))
+import           Test.QuickCheck.Arbitrary.Generic  (genericArbitrary)
 
-import           ENCOINS.Core.BaseTypes (GroupElement, FieldElement, MintingPolarity)
+import           ENCOINS.Core.BaseTypes             (GroupElement, FieldElement, MintingPolarity)
 
 
 data BulletproofSetup = BulletproofSetup GroupElement GroupElement [GroupElement] [GroupElement] Integer
@@ -36,14 +38,20 @@ data Secret = Secret
         secretGamma :: FieldElement,
         secretV     :: FieldElement
     }
-    deriving (Haskell.Eq, Haskell.Show)
+    deriving (Haskell.Eq, Haskell.Show, Generic)
+
+instance Arbitrary Secret where
+    arbitrary = genericArbitrary
 
 unstableMakeIsData ''Secret
 
 type Secrets = [Secret]
 
 data Randomness = Randomness FieldElement [FieldElement] [FieldElement] FieldElement FieldElement FieldElement
-    deriving (Haskell.Eq, Haskell.Show)
+    deriving (Haskell.Eq, Haskell.Show, Generic)
+
+instance Arbitrary Randomness where
+    arbitrary = genericArbitrary
 
 unstableMakeIsData ''Randomness
 

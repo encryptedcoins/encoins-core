@@ -46,3 +46,9 @@ bulletproof (BulletproofSetup h g hs gs n) bp secrets (Randomness alpha sL sR rh
         taux     = (tau2 * x2) + (tau1 * x) + foldl (+) zero (zipWith (*) zs gammas)
         mu       = alpha + (rho * x)
         commitVs = zipWith groupMul (map (groupExp h) gammas) (map (groupExp g) vs)
+
+fromSecret :: BulletproofSetup -> Secret -> (Integer, BuiltinByteString)
+fromSecret (BulletproofSetup h g hs gs n) (Secret gamma v) = (val, bs)
+    where
+        val = fromFieldElement v
+        bs  = fromGroupElement $ (groupExp h gamma) `groupMul` (groupExp g v)

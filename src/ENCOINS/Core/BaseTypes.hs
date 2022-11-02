@@ -18,18 +18,19 @@
 
 module ENCOINS.Core.BaseTypes where
 
-import           Data.Aeson           (FromJSON, ToJSON)
-import           GHC.Generics         (Generic)
-import           PlutusTx             (makeIsDataIndexed, unstableMakeIsData)
+import           Data.Aeson                (FromJSON, ToJSON)
+import           GHC.Generics              (Generic)
+import           PlutusTx                  (makeIsDataIndexed, unstableMakeIsData)
 import           PlutusTx.Prelude
-import qualified Prelude              as Haskell
+import qualified Prelude                   as Haskell
+import           Test.QuickCheck           (Arbitrary(..))
 
-import           Crypto               (T1, toZp, fromZp, addJ, mulJ, dblJ, fromXJ, CurvePoint (..), fromJ)
-import           Utils.ByteString     (byteStringToInteger, integerToByteString)
+import           Crypto                    (T1, toZp, fromZp, addJ, mulJ, dblJ, fromXJ, CurvePoint (..), fromJ)
+import           Utils.ByteString          (byteStringToInteger, integerToByteString)
 
 
 newtype FieldElement = F Integer
-    deriving (Haskell.Eq, Haskell.Show)
+    deriving (Haskell.Eq, Haskell.Show, Generic)
 
 instance Eq FieldElement where
     (==) (F a) (F b) = a == b
@@ -85,6 +86,12 @@ instance Group FieldElement where
                     | otherwise  = f (x', y') (x - q * x', y - q * y')
           where q = divide x x'
 
+instance Arbitrary FieldElement where
+  {-# INLINABLE arbitrary #-}
+  arbitrary = do
+    n <- arbitrary
+    return $ F $ modulo n fieldPrime
+
 -- NOTE: demo implementation
 -- TODO: implement this
 type GroupElement = (T1, T1, T1)
@@ -114,6 +121,13 @@ fromGroupElement g = integerToByteString n
 {-# INLINABLE groupIdentity #-}
 groupIdentity :: GroupElement
 groupIdentity = (one, one, zero)
+
+-- NOTE: demo implementation
+-- TODO: implement this
+{-# INLINABLE groupGenerator #-}
+groupGenerator :: GroupElement
+groupGenerator = (toZp 0x17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb,
+    toZp 0x8b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1, one)
 
 -- NOTE: demo implementation
 -- TODO: implement this
