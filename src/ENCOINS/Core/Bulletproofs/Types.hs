@@ -38,7 +38,7 @@ data Secret = Secret
         secretGamma :: FieldElement,
         secretV     :: FieldElement
     }
-    deriving (Haskell.Eq, Haskell.Show, Generic)
+    deriving (Haskell.Eq, Haskell.Show, Generic, FromJSON, ToJSON)
 
 instance Arbitrary Secret where
     arbitrary = genericArbitrary
@@ -67,6 +67,6 @@ unstableMakeIsData ''Input
 type Inputs = [Input]
 
 data Proof = Proof GroupElement GroupElement GroupElement GroupElement FieldElement FieldElement FieldElement [FieldElement] [FieldElement]
-    deriving (Haskell.Eq, Haskell.Show)
+    deriving (Haskell.Eq, Haskell.Show, Generic, FromJSON, ToJSON)
 
 unstableMakeIsData ''Proof

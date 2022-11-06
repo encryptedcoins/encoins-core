@@ -31,6 +31,7 @@ import           Utils.ByteString          (byteStringToInteger, integerToByteSt
 
 newtype FieldElement = F Integer
     deriving (Haskell.Eq, Haskell.Show, Generic)
+    deriving anyclass (FromJSON, ToJSON)
 
 instance Eq FieldElement where
     (==) (F a) (F b) = a == b
