@@ -40,7 +40,7 @@ unstableMakeIsData ''FieldElement
 
 {-# INLINABLE toFieldElement #-}
 toFieldElement :: Integer -> FieldElement
-toFieldElement = F
+toFieldElement a = F $ modulo a fieldPrime
 
 {-# INLINABLE fromFieldElement #-}
 fromFieldElement :: FieldElement -> Integer

@@ -83,11 +83,12 @@ encoinsPolicyCheck beaconSymb ((v, addr, pkh, (tFrom, tTo)), inputs, proof)
       && cond5
   where
       beacon = token (AssetClass (beaconSymb, beaconTokenName))
-      bp = toBytes addr `appendByteString` toBytes pkh `appendByteString` toBytes (getPOSIXTime tFrom) `appendByteString` toBytes (getPOSIXTime tTo)
+      bp     = toBytes addr `appendByteString` toBytes pkh `appendByteString` toBytes (getPOSIXTime tFrom) `appendByteString` toBytes (getPOSIXTime tTo)
+      val    = lovelaceValueOf (abs v * 1_000_000)
 
       cond0 = tokensMinted ctx $ fromList $ map (\(Input g p) -> (encoinName g, polarityToInteger p)) inputs
       -- cond1 = verify bulletproofSetup (toGroupElement bp) v inputs proof
-      cond2 = sum (map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == addr)) `geq` lovelaceValueOf (abs v)
+      cond2 = sum (map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == addr)) `geq` val
       -- cond3 = utxoReferenced info (\o -> txOutAddress o == addr && txOutValue o `geq` beacon) || (v < 0)
       cond4 = validatedInInterval info tFrom tTo
       cond5 = pkh `elem` txInfoSignatories info

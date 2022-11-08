@@ -35,7 +35,7 @@ verify (BulletproofSetup h g hs gs n) bp val inputs (Proof commitA commitS commi
         commitP  = foldl groupMul groupIdentity (commitA : groupExp commitS x : map (`groupExp` negate z) gs ++ zipWith groupExp hs' lam)
         s        = sum twos
         psSum    = F $ sum $ map polarityToInteger ps
-        delta    = ((z - z*z) * sum ys) - sum (map (* s) zs) - (z * z' * s * psSum) + z' * F val
+        delta    = ((z - z*z) * sum ys) - sum (map (* s) zs) - (z * z' * s * psSum) + z' * toFieldElement val
 
         cond1    = groupExp g tHat `groupMul` groupExp h taux ==
             groupExp g delta

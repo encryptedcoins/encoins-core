@@ -10,7 +10,7 @@
 module ENCOINS.Core.Bulletproofs.Prove where
 
 import           PlutusTx.Prelude
-import           Prelude                          (unzip)
+import           Prelude                          (unzip, (^))
 
 import           ENCOINS.Core.BaseTypes
 import           ENCOINS.Core.Bulletproofs.Types
@@ -24,7 +24,8 @@ bulletproof (BulletproofSetup h g hs gs n) bp secrets (Randomness alpha sL sR rh
         m        = length secrets
         gammas   = map secretGamma secrets
         (vs, ps) = unzip $ map (polarity n . secretV) secrets
-        val      = fromFieldElement $ foldl (+) zero (map secretV secrets)
+        val      = let v = foldl (+) zero (map secretV secrets)
+                    in if fromFieldElement v < (2^n) then fromFieldElement v else fromFieldElement $ negate v
         aL       = concatMap (fromBits . toBits) vs
         aR       = concatMap (fromBits . map (\q -> q - 1) . toBits) vs
         commitA  = foldl groupMul groupIdentity (groupExp h alpha : zipWith groupExp gs aL ++ zipWith groupExp hs aR)

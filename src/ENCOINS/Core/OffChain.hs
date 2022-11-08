@@ -78,7 +78,7 @@ encoinsTx :: EncoinsParams -> EncoinsRedeemer -> EncoinsTransactionBuilder ()
 encoinsTx beaconSymb red@((v, addr, pkh, (tFrom, tTo)), inputs, _)  = do
     let beacon = token (AssetClass (beaconSymb, beaconTokenName))
         coinsToBurn = filter (\(Input _ p) -> p == Burn) inputs
-        val = lovelaceValueOf v
+        val = lovelaceValueOf (v * 1_000_000)
     mapM_ (encoinsBurnTx beaconSymb . inputCommit) coinsToBurn
     tokensMintedTx (encoinsPolicy beaconSymb) red (sum $ map (\(Input g p) -> scale (polarityToInteger p) (encoin beaconSymb g)) inputs)
     stakingModifyTx (encoinsSymbol beaconSymb) val
