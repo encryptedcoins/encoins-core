@@ -24,8 +24,7 @@
 module ENCOINS.Core.OnChain where
 
 import           Ledger.Ada                           (lovelaceValueOf)
-import           Ledger.Tokens                        (token)
-import           Ledger.Value                         (AssetClass (..), geq, noAdaValue)
+import           Ledger.Value                         (geq, noAdaValue)
 import           Plutus.Script.Utils.V2.Typed.Scripts (ValidatorTypes (..), TypedValidator,
                                                         mkTypedValidator, mkUntypedValidator, mkUntypedMintingPolicy)
 import           Plutus.V2.Ledger.Api
@@ -36,9 +35,8 @@ import           PlutusTx.Prelude
 
 import           ENCOINS.Core.Bulletproofs
 import           ENCOINS.Core.BaseTypes
-import           Scripts.Constraints                  (utxoReferenced, tokensMinted, filterUtxoSpent, filterUtxoProduced, validatedInInterval)
+import           Scripts.Constraints                  (tokensMinted, filterUtxoSpent, filterUtxoProduced)
 import           Scripts.OneShotCurrency              (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
-import           Utils.ByteString                     (toBytes)
 
 ------------------------------------- Beacon Minting Policy --------------------------------------
 
@@ -69,28 +67,29 @@ type TxParams = (Integer, Address, PubKeyHash, (POSIXTime, POSIXTime))
 type EncoinsRedeemer = (TxParams, Inputs, Proof)
 
 {-# INLINABLE encoinName #-}
-encoinName :: GroupElement -> TokenName
-encoinName = TokenName . fromGroupElement
+encoinName :: BuiltinByteString -> TokenName
+encoinName = TokenName  -- . takeByteString 32 . fromGroupElement
 
+-- TODO: remove on-chain sorting
 encoinsPolicyCheck :: EncoinsParams -> EncoinsRedeemer -> ScriptContext -> Bool
-encoinsPolicyCheck beaconSymb ((v, addr, pkh, (tFrom, tTo)), inputs, proof)
+encoinsPolicyCheck _ ((v, addr, pkh, (_, _)), inputs, _)
     ctx@ScriptContext{scriptContextTxInfo=info} =
       cond0
       -- && cond1
       && cond2
       -- && cond3
-      && cond4
+      -- && cond4
       && cond5
   where
-      beacon = token (AssetClass (beaconSymb, beaconTokenName))
-      bp     = toBytes addr `appendByteString` toBytes pkh `appendByteString` toBytes (getPOSIXTime tFrom) `appendByteString` toBytes (getPOSIXTime tTo)
+      -- beacon = token (AssetClass (beaconSymb, beaconTokenName))
+      -- bp     = toBytes addr `appendByteString` toBytes pkh `appendByteString` toBytes (getPOSIXTime tFrom) `appendByteString` toBytes (getPOSIXTime tTo)
       val    = lovelaceValueOf (abs v * 1_000_000)
 
-      cond0 = tokensMinted ctx $ fromList $ map (\(Input g p) -> (encoinName g, polarityToInteger p)) inputs
+      cond0 = tokensMinted ctx $ fromList $ sort $ map (\(Input bs p) -> (encoinName bs, polarityToInteger p)) inputs
       -- cond1 = verify bulletproofSetup (toGroupElement bp) v inputs proof
       cond2 = sum (map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == addr)) `geq` val
       -- cond3 = utxoReferenced info (\o -> txOutAddress o == addr && txOutValue o `geq` beacon) || (v < 0)
-      cond4 = validatedInInterval info tFrom tTo
+      -- cond4 = validatedInInterval info tFrom tTo
       cond5 = pkh `elem` txInfoSignatories info
 
 encoinsPolicy :: EncoinsParams -> MintingPolicy
@@ -118,7 +117,7 @@ stakingValidatorCheck encoinsSymb _ _
     addr = txOutAddress $ txInInfoResolved $ fromMaybe (error ()) $ findOwnInput ctx -- this script's address
     vOut = sum $ map txOutValue $ filterUtxoSpent info (\o -> txOutAddress o == addr)
     vIn  = sum $ map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == addr)
-    val  = lovelaceValueOf $ fromMaybe 0 $ do
+    val  = lovelaceValueOf $ (* 1_000_000) $ fromMaybe 0 $ do
       red <- lookup purp $ txInfoRedeemers info
       ((v, _, _, _), _, _) <- fromBuiltinData $ getRedeemer red :: Maybe EncoinsRedeemer
       Just v

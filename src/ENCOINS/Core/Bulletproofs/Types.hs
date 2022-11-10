@@ -17,7 +17,7 @@ module ENCOINS.Core.Bulletproofs.Types where
 import           Data.Aeson                         (FromJSON, ToJSON)
 import           GHC.Generics                       (Generic)
 import           PlutusTx                           (unstableMakeIsData)
-import           PlutusTx.Prelude                   (Integer)
+import           PlutusTx.Prelude                   (Integer, BuiltinByteString)
 import qualified Prelude                            as Haskell
 import           Test.QuickCheck                    (Arbitrary(..))
 import           Test.QuickCheck.Arbitrary.Generic  (genericArbitrary)
@@ -57,7 +57,7 @@ unstableMakeIsData ''Randomness
 
 data Input = Input
     {
-        inputCommit   :: GroupElement,
+        inputCommit   :: BuiltinByteString,
         inputPolarity :: MintingPolarity
     }
     deriving (Haskell.Eq, Haskell.Show, Generic, FromJSON, ToJSON)

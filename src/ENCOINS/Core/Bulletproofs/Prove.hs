@@ -46,10 +46,10 @@ bulletproof (BulletproofSetup h g hs gs n) bp secrets (Randomness alpha sL sR rh
         tHat     = foldl (+) zero $ zipWith (*) lx rx
         taux     = (tau2 * x2) + (tau1 * x) + foldl (+) zero (zipWith (*) zs gammas)
         mu       = alpha + (rho * x)
-        commitVs = zipWith groupMul (map (groupExp h) gammas) (map (groupExp g) vs)
+        commitVs = map fromGroupElement $ zipWith groupMul (map (groupExp h) gammas) (map (groupExp g) vs) -- this is not correct
 
-fromSecret :: BulletproofSetup -> Secret -> (Integer, BuiltinByteString)
-fromSecret (BulletproofSetup h g hs gs n) (Secret gamma v) = (val, bs)
+fromSecret :: BulletproofSetup -> Secret -> (Integer, GroupElement)
+fromSecret (BulletproofSetup h g _ _ n) (Secret gamma v) = (val, ge)
     where
-        val = fromFieldElement v
-        bs  = fromGroupElement $ (groupExp h gamma) `groupMul` (groupExp g v)
+        val = if fromFieldElement v < (2^n) then fromFieldElement v else fromFieldElement $ negate v
+        ge  = groupExp h gamma `groupMul` groupExp g v

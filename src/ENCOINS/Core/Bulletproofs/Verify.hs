@@ -19,7 +19,7 @@ import           ENCOINS.Core.Bulletproofs.Types
 verify :: BulletproofSetup -> BulletproofParams -> Integer -> Inputs -> Proof -> Bool
 verify (BulletproofSetup h g hs gs n) bp val inputs (Proof commitA commitS commitT1 commitT2 taux mu tHat lx rx) = cond1 && cond2 && cond3
     where
-        commitVs = map inputCommit inputs
+        commitVs = mapMaybe (toGroupElement . inputCommit) inputs -- this is not correct
         ps       = map inputPolarity inputs
         m        = length commitVs
         (y, z)   = challenge [commitA, commitS, bp]

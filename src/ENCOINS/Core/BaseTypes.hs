@@ -19,10 +19,14 @@
 module ENCOINS.Core.BaseTypes where
 
 import           Data.Aeson                (FromJSON, ToJSON)
+import           Data.Bifunctor            (Bifunctor(..))
+import           Data.Functor              ((<$>))
 import           GHC.Generics              (Generic)
 import           PlutusTx                  (makeIsDataIndexed, unstableMakeIsData)
-import           PlutusTx.Prelude
+import           PlutusTx.Prelude          hiding ((<$>))
 import qualified Prelude                   as Haskell
+import           System.Random             (Random (..), Uniform, UniformRange)
+import           System.Random.Stateful    (Uniform(..), UniformRange (..))
 import           Test.QuickCheck           (Arbitrary(..))
 
 import           Crypto                    (T1, toZp, fromZp, addJ, mulJ, dblJ, fromXJ, CurvePoint (..), fromJ)
@@ -92,6 +96,18 @@ instance Arbitrary FieldElement where
   arbitrary = do
     n <- arbitrary
     return $ F $ modulo n fieldPrime
+
+instance UniformRange FieldElement where
+    uniformRM (F a, F b) g = F <$> uniformRM (a, b) g
+
+instance Uniform FieldElement where
+    uniformM = uniformRM (zero, F $ fieldPrime - 1)
+
+instance Random FieldElement where
+    randomR (F a, F b) g = first F $ randomR (a, b) g
+    randomRs (F a, F b)  = map F . randomRs (a, b)
+    random               = randomR (zero, F $ fieldPrime - 1)
+    randoms              = map F . randoms
 
 -- NOTE: demo implementation
 -- TODO: implement this
