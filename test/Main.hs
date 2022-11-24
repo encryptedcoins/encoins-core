@@ -10,15 +10,16 @@
 
 module Main where
 
+import           Data.Maybe                      (fromJust)
+import           PlutusTx.Prelude                (emptyByteString)
 import           Prelude
-import           Test.QuickCheck             (quickCheck)
-import ENCOINS.Core.Bulletproofs.Prove (bulletproof)
-import ENCOINS.Core.OnChain (bulletproofSetup)
-import ENCOINS.Core.BaseTypes 
-import PlutusTx.Prelude (emptyByteString)
-import Data.Maybe (fromJust)
-import ENCOINS.Core.Bulletproofs.Types (Secret(..), Randomness (Randomness))
-import ENCOINS.Core.Bulletproofs.Utils (polarity)
+import           Test.QuickCheck                 (quickCheck)
+
+import           ENCOINS.Core.Bulletproofs.Prove (bulletproof)
+import           ENCOINS.Core.OnChain            (bulletproofSetup)
+import           ENCOINS.Core.BaseTypes 
+import           ENCOINS.Core.Bulletproofs.Types (Secret(..), Randomness (Randomness))
+import           ENCOINS.Core.Bulletproofs.Utils (polarity)
 
 main :: IO ()
 main = do

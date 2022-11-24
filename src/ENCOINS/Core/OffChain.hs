@@ -25,13 +25,13 @@ import           Plutus.Script.Utils.V2.Typed.Scripts           (ValidatorTypes 
 import           Plutus.V2.Ledger.Api
 import           PlutusTx.Prelude                               hiding ((<$>))
 
+import           Constraints.OffChain
 import           ENCOINS.Core.OnChain                           (EncoinsParams, EncoinsRedeemer, StakingParams, encoinName, encoinsPolicy,
                                                                     stakingTypedValidator, beaconPolicy, beaconTokenName, beaconParams, ledgerTypedValidator)
 import           ENCOINS.Core.BaseTypes                         (MintingPolarity (..), polarityToInteger)
 import           ENCOINS.Core.Bulletproofs
 import           Scripts.OneShotCurrency                        (oneShotCurrencyMintTx)
-import           Scripts.Constraints
-import           Types.TxConstructor                            (TxConstructor (..))
+import           Types.Tx                                       (TxConstructor (..))
 
 
 type EncoinsTransaction = TxConstructor Any (RedeemerType Any) (DatumType Any)

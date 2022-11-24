@@ -30,7 +30,7 @@ import           System.Random.Stateful    (Uniform(..), UniformRange (..))
 import           Test.QuickCheck           (Arbitrary(..))
 
 import           Crypto                    (T1, toZp, fromZp, addJ, mulJ, dblJ, fromXJ, CurvePoint (..), fromJ)
-import           Utils.ByteString          (byteStringToInteger, integerToByteString)
+import           Utils.ByteString          (toBytes, byteStringToInteger)
 
 
 newtype FieldElement = F Integer
@@ -128,7 +128,7 @@ toGroupElement bs = if n == q then Just (one, one, zero) else fromXJ $ toZp n
 -- TODO: implement this
 {-# INLINABLE fromGroupElement #-}
 fromGroupElement :: GroupElement -> BuiltinByteString
-fromGroupElement g = integerToByteString n
+fromGroupElement g = toBytes n
     where n = case fromJ g of
             CP x _ -> fromZp x
             O      -> 0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab

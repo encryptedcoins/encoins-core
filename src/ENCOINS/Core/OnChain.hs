@@ -33,9 +33,9 @@ import           PlutusTx                             (compile, applyCode, liftC
 import           PlutusTx.AssocMap                    (lookup)
 import           PlutusTx.Prelude
 
+import           Constraints.OnChain                  (tokensMinted, filterUtxoSpent, filterUtxoProduced)
 import           ENCOINS.Core.Bulletproofs
 import           ENCOINS.Core.BaseTypes
-import           Scripts.Constraints                  (tokensMinted, filterUtxoSpent, filterUtxoProduced)
 import           Scripts.OneShotCurrency              (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
 
 ------------------------------------- Beacon Minting Policy --------------------------------------
