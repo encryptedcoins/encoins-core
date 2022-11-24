@@ -81,7 +81,7 @@ encoinsTx beaconSymb red@((v, _, pkh, (_, _)), inputs, _)  = do
     let -- beacon      = token (AssetClass (beaconSymb, beaconTokenName))
         coinsToBurn = filter (\(Input _ p) -> p == Burn) inputs
         val         = lovelaceValueOf (v * 1_000_000)
-        valEncoins  = sum $ map (\(Input bs p) -> scale (polarityToInteger p) (encoin beaconSymb bs)) inputs
+        valEncoins  = sum $ map (\(Input bs p) -> scale (polarityToInteger p) (encoin beaconSymb (sha2_256 bs))) inputs
     mapM_ (encoinsBurnTx beaconSymb . inputCommit) coinsToBurn
     tokensMintedTx (encoinsPolicy beaconSymb) red valEncoins
     stakingModifyTx (encoinsSymbol beaconSymb) val

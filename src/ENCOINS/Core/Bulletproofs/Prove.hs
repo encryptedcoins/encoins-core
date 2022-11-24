@@ -52,4 +52,4 @@ fromSecret :: BulletproofSetup -> Secret -> (Integer, BuiltinByteString)
 fromSecret (BulletproofSetup h g _ _ n) (Secret gamma v) = (val, bs)
     where
         val = if fromFieldElement v < (2^n) then fromFieldElement v else fromFieldElement $ negate v
-        bs  = takeByteString 32 $ fromGroupElement $ groupExp h gamma `groupMul` groupExp g v
+        bs  = fromGroupElement $ groupExp h gamma `groupMul` groupExp g v

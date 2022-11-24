@@ -68,7 +68,7 @@ type EncoinsRedeemer = (TxParams, Inputs, Proof)
 
 {-# INLINABLE encoinName #-}
 encoinName :: BuiltinByteString -> TokenName
-encoinName = TokenName  -- . takeByteString 32 . fromGroupElement
+encoinName = TokenName . sha2_256
 
 -- TODO: remove on-chain sorting
 encoinsPolicyCheck :: EncoinsParams -> EncoinsRedeemer -> ScriptContext -> Bool
