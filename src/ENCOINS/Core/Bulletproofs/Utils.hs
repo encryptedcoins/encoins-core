@@ -10,10 +10,9 @@
 module ENCOINS.Core.Bulletproofs.Utils where
 
 import           PlutusTx.Prelude
-import           Prelude                 ((^))
 
 import           ENCOINS.Core.BaseTypes
-import           Utils.Prelude           (drop)
+import           Utils.Prelude           (drop, replicate)
 import           Utils.ByteString        (byteStringToInteger)
 
 ----------------------------------- Challenge ---------------------------------------
@@ -49,25 +48,34 @@ toBits (F a) = r : if q > 0 then toBits (F q) else []
 fromBits :: [Integer] -> [FieldElement]
 fromBits = map F
 
+padBits :: Integer -> [Integer] -> [Integer]
+padBits _ [] = []
+padBits k x
+    | l > k     = x
+    | otherwise = x ++ replicate (k-l) zero
+  where l = length x
+
+------------------------------------- Polarity --------------------------------------
+
+{-# INLINABLE polarityToInteger #-}
+polarityToInteger :: MintingPolarity -> Integer
+polarityToInteger Mint = 1
+polarityToInteger Burn = -1
+
+{-# INLINABLE withPolarity #-}
+withPolarity :: MintingPolarity -> FieldElement -> FieldElement
+withPolarity p v = if p == Mint then v else negate v
+
 ----------------------------------- Arithmetics -------------------------------------
 
 {-# INLINABLE powers #-}
 powers :: FieldElement -> Integer -> [FieldElement]
 powers _ 1 = [one]
-powers e n = map (* e) $ powers e (n-1)
+powers e n = one : map (* e) (powers e (n-1))
 
 {-# INLINABLE powersOfZ #-}
 powersOfZ :: FieldElement -> Integer -> ([FieldElement], FieldElement)
 powersOfZ z m = (\lst -> (take m lst, lst !! m)) $ drop 2 $ powers z (m+3)
 
-------------------------------------- Polarity --------------------------------------
-
-polarity :: Integer -> FieldElement -> (FieldElement, MintingPolarity)
-polarity n v
-    | fromFieldElement v          < 2^n = (v, Mint)
-    | fromFieldElement (negate v) < 2^n = (negate v, Burn)
-    | otherwise = error ()
-
-{-# INLINABLE withPolarity #-}
-withPolarity :: MintingPolarity -> FieldElement -> FieldElement
-withPolarity p v = if p == Mint then v else negate v
+powersOf2 :: Integer -> [FieldElement]
+powersOf2 = powers (F 2)

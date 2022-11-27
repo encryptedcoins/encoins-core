@@ -30,6 +30,7 @@ library
     exposed-modules:
       ENCOINS.Core.BaseTypes
       ENCOINS.Core.Bulletproofs
+      ENCOINS.Core.Bulletproofs.Common
       ENCOINS.Core.Bulletproofs.Prove
       ENCOINS.Core.Bulletproofs.Types
       ENCOINS.Core.Bulletproofs.Utils
@@ -95,6 +96,7 @@ test-suite encoins-core-test
     base                                   -any,
     aeson                                  -any,
     bytestring                             -any,
+    cardano-mixer-common                   -any,
     containers                             -any,
     encoins-core                           -any,
     generic-arbitrary                      -any,

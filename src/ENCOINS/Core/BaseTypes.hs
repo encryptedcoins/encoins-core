@@ -120,18 +120,26 @@ instance Eq GroupElement where
 -- TODO: implement this
 {-# INLINABLE toGroupElement #-}
 toGroupElement :: BuiltinByteString -> Maybe GroupElement
-toGroupElement bs = if n == q then Just (one, one, zero) else fromXJ $ toZp n
-    where n = byteStringToInteger bs
+toGroupElement bs = do
+        (x, y, z) <- fromXJ $ toZp n
+        if n == q
+            then Just (one, one, zero)
+            else if toBytes (even (fromZp y)) == takeByteString 1 bs
+                then Just (x, y, z)
+                else Just (x, negate y, z)
+    where 
+          bs' = dropByteString 1 bs
+          n = byteStringToInteger bs'
           q = 0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab
 
 -- NOTE: demo implementation
 -- TODO: implement this
 {-# INLINABLE fromGroupElement #-}
 fromGroupElement :: GroupElement -> BuiltinByteString
-fromGroupElement g = toBytes n
-    where n = case fromJ g of
-            CP x _ -> fromZp x
-            O      -> 0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab
+fromGroupElement g = toBytes isEven `appendByteString` toBytes n
+    where (n, isEven) = case fromJ g of
+            CP x y -> (fromZp x, even $ fromZp y)
+            O      -> (0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab, False)
 
 -- NOTE: demo implementation
 -- TODO: implement this
@@ -169,8 +177,3 @@ instance Eq MintingPolarity where
     _ == _       = False
 
 makeIsDataIndexed ''MintingPolarity [('Mint,0),('Burn,1)]
-
-{-# INLINABLE polarityToInteger #-}
-polarityToInteger :: MintingPolarity -> Integer
-polarityToInteger Mint = 1
-polarityToInteger Burn = -1

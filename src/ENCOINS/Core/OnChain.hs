@@ -55,16 +55,17 @@ beaconPolicy = oneShotCurrencyPolicy . beaconParams
 
 bulletproofSetup :: BulletproofSetup
 bulletproofSetup = BulletproofSetup groupGenerator (groupExp groupGenerator (toFieldElement 2))
-  (map (groupExp groupGenerator . toFieldElement) [3..(n+2)])
-  (map (groupExp groupGenerator . toFieldElement) [(n+3)..(2*n+2)]) n
+  (map (groupExp groupGenerator . toFieldElement) [3..(n*m+2)])
+  (map (groupExp groupGenerator . toFieldElement) [(n*m+3)..(2*(n*m)+2)]) n
   where n = 10
+        m = 10
 
 -- Beacon currency symbol
 type EncoinsParams = CurrencySymbol
 
 type TxParams = (Integer, Address, PubKeyHash, (POSIXTime, POSIXTime))
 
-type EncoinsRedeemer = (TxParams, Inputs, Proof)
+type EncoinsRedeemer = (TxParams, [(BuiltinByteString, MintingPolarity)], Proof)
 
 {-# INLINABLE encoinName #-}
 encoinName :: BuiltinByteString -> TokenName
@@ -85,7 +86,7 @@ encoinsPolicyCheck _ ((v, addr, pkh, (_, _)), inputs, _)
       -- bp     = toBytes addr `appendByteString` toBytes pkh `appendByteString` toBytes (getPOSIXTime tFrom) `appendByteString` toBytes (getPOSIXTime tTo)
       val    = lovelaceValueOf (abs v * 1_000_000)
 
-      cond0 = tokensMinted ctx $ fromList $ sort $ map (\(Input bs p) -> (encoinName bs, polarityToInteger p)) inputs
+      cond0 = tokensMinted ctx $ fromList $ sort $ map (\(bs, p) -> (encoinName bs, polarityToInteger p)) inputs
       -- cond1 = verify bulletproofSetup (toGroupElement bp) v inputs proof
       cond2 = sum (map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == addr)) `geq` val
       -- cond3 = utxoReferenced info (\o -> txOutAddress o == addr && txOutValue o `geq` beacon) || (v < 0)

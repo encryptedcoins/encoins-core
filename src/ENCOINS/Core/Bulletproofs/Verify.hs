@@ -11,37 +11,37 @@ module ENCOINS.Core.Bulletproofs.Verify where
 
 import           PlutusTx.Prelude
 
+import           Crypto.Curve                     (fromJ)
 import           ENCOINS.Core.BaseTypes
-import           ENCOINS.Core.Bulletproofs.Utils
+import           ENCOINS.Core.Bulletproofs.Common
+import           ENCOINS.Core.Bulletproofs.Utils  (challenge, powers, polarityToInteger)
 import           ENCOINS.Core.Bulletproofs.Types
 
+-- TODO: add data correctness checks
 {-# INLINABLE verify #-}
 verify :: BulletproofSetup -> BulletproofParams -> Integer -> Inputs -> Proof -> Bool
-verify (BulletproofSetup h g hs gs n) bp val inputs (Proof commitA commitS commitT1 commitT2 taux mu tHat lx rx) = cond1 && cond2 && cond3
+verify bs@(BulletproofSetup h g _ gs n) bp val inputs (Proof commitA commitS commitT1 commitT2 taux mu lx rx tHat) = cond1 && cond2 && cond3
     where
-        commitVs = mapMaybe (toGroupElement . inputCommit) inputs -- this is not correct
+        m        = length inputs
         ps       = map inputPolarity inputs
-        m        = length commitVs
-        (y, z)   = challenge [commitA, commitS, bp]
+        commitVs = map inputCommit inputs
+
+        CommonPart z z' ys zs lam hs' = commonPart bs bp ps (commitA, commitS)
+
         (x, _)   = challenge [commitT1, commitT2]
-        (zs, z') = powersOfZ z m
-        twos     = powers (F 2) n
         x2       = x * x
-        ys       = powers y (n * m)
-        hs'      = zipWith groupExp hs (map inv ys)
-        lam1     = map (* z) ys
-        lam2     = concatMap (\zj -> zipWith (\p a -> (a * zj) + (withPolarity p a *  z')) ps twos) zs
-        lam      = zipWith (+) lam1 lam2
-        commitP  = foldl groupMul groupIdentity (commitA : groupExp commitS x : map (`groupExp` negate z) gs ++ zipWith groupExp hs' lam)
+
+        commitP  = foldl groupMul groupIdentity (commitA : groupExp commitS x : map (`groupExp` negate z) (take (n*m) gs) ++ zipWith groupExp hs' lam)
+        twos     = powers (F 2) n
         s        = sum twos
         psSum    = F $ sum $ map polarityToInteger ps
-        delta    = ((z - z*z) * sum ys) - sum (map (* s) zs) - (z * z' * s * psSum) + z' * toFieldElement val
+        delta    = ((z - z*z) * sum ys) - z * s * sum zs - z * s * z' * psSum + z' * toFieldElement val
 
-        cond1    = groupExp g tHat `groupMul` groupExp h taux ==
-            groupExp g delta
+        cond1    = fromJ (groupExp g tHat `groupMul` groupExp h taux) ==
+            fromJ (groupExp g delta
             `groupMul` foldl groupMul groupIdentity (zipWith groupExp commitVs zs)
             `groupMul` groupExp commitT1 x
-            `groupMul` groupExp commitT2 x2
-        cond2    = commitP == foldl groupMul groupIdentity (groupExp h mu : zipWith groupExp gs lx ++ zipWith groupExp hs' rx)
+            `groupMul` groupExp commitT2 x2)
+        cond2    = fromJ commitP == fromJ (foldl groupMul groupIdentity (groupExp h mu : zipWith groupExp gs lx ++ zipWith groupExp hs' rx))
         cond3    = tHat == foldl (+) zero (zipWith (*) lx rx)
 

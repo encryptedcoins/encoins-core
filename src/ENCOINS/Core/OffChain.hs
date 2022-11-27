@@ -25,10 +25,10 @@ import           Plutus.V2.Ledger.Api
 import           PlutusTx.Prelude                               hiding ((<$>))
 
 import           Constraints.OffChain
+import           ENCOINS.Core.BaseTypes                         (MintingPolarity (..))
+import           ENCOINS.Core.Bulletproofs.Utils                (polarityToInteger)
 import           ENCOINS.Core.OnChain                           (EncoinsParams, EncoinsRedeemer, StakingParams, encoinName, encoinsPolicy,
                                                                     stakingTypedValidator, beaconPolicy, beaconTokenName, beaconParams, ledgerTypedValidator)
-import           ENCOINS.Core.BaseTypes                         (MintingPolarity (..), polarityToInteger)
-import           ENCOINS.Core.Bulletproofs
 import           Scripts.OneShotCurrency                        (oneShotCurrencyMintTx)
 import           Types.Tx                                       (TransactionBuilder)
 
@@ -62,22 +62,21 @@ encoinsAssetClass par a = AssetClass (encoinsSymbol par, encoinName a)
 encoin :: EncoinsParams -> BuiltinByteString -> Value
 encoin par a = token $ encoinsAssetClass par a
 
--- TODO: add failTx if we haven't found the coin
 encoinsBurnTx :: EncoinsParams -> BuiltinByteString -> TransactionBuilder ()
 encoinsBurnTx beaconSymb bs = do
     let f = \_ o -> _ciTxOutValue o `geq` encoin beaconSymb bs
-    _ <- utxoSpentPublicKeyTx' f
-    _ <- utxoSpentScriptTx' f (const . const $ ledgerValidator) (const . const $ ())
-    return ()
+    res1 <- utxoSpentPublicKeyTx' f
+    res2 <- utxoSpentScriptTx' f (const . const $ ledgerValidator) (const . const $ ())
+    failTx (res1 >> res2) $> ()
 
 -- TODO: finish implementation
 encoinsTx :: EncoinsParams -> EncoinsRedeemer -> TransactionBuilder ()
 encoinsTx beaconSymb red@((v, _, pkh, (_, _)), inputs, _)  = do
     let -- beacon      = token (AssetClass (beaconSymb, beaconTokenName))
-        coinsToBurn = filter (\(Input _ p) -> p == Burn) inputs
+        coinsToBurn = filter (\(_, p) -> p == Burn) inputs
         val         = lovelaceValueOf (v * 1_000_000)
-        valEncoins  = sum $ map (\(Input bs p) -> scale (polarityToInteger p) (encoin beaconSymb (sha2_256 bs))) inputs
-    mapM_ (encoinsBurnTx beaconSymb . inputCommit) coinsToBurn
+        valEncoins  = sum $ map (\(bs, p) -> scale (polarityToInteger p) (encoin beaconSymb (sha2_256 bs))) inputs
+    mapM_ (encoinsBurnTx beaconSymb . fst) coinsToBurn
     tokensMintedTx (encoinsPolicy beaconSymb) red valEncoins
     stakingModifyTx (encoinsSymbol beaconSymb) val
     -- validatedInIntervalTx tFrom tTo
