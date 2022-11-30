@@ -55,10 +55,8 @@ beaconPolicy = oneShotCurrencyPolicy . beaconParams
 
 bulletproofSetup :: BulletproofSetup
 bulletproofSetup = BulletproofSetup groupGenerator (groupExp groupGenerator (toFieldElement 2))
-  (map (groupExp groupGenerator . toFieldElement) [3..(n*m+2)])
-  (map (groupExp groupGenerator . toFieldElement) [(n*m+3)..(2*(n*m)+2)]) n
-  where n = 10
-        m = 10
+  (map (groupExp groupGenerator . toFieldElement) [3..(bulletproofN * bulletproofM + 2)])
+  (map (groupExp groupGenerator . toFieldElement) [(bulletproofN * bulletproofM + 3)..(2 * (bulletproofN * bulletproofM) + 2)])
 
 -- Beacon currency symbol
 type EncoinsParams = CurrencySymbol

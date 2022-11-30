@@ -25,28 +25,30 @@ import           Test.QuickCheck                    (Arbitrary(..))
 
 import           ENCOINS.Core.BaseTypes             (GroupElement, FieldElement (..), MintingPolarity)
 
--- TODO: remove hardcoded constants in these module
-
 ------------------------------------- BulletproofSetup --------------------------------------
 
-data BulletproofSetup = BulletproofSetup GroupElement GroupElement [GroupElement] [GroupElement] Integer
+bulletproofN :: Integer
+bulletproofN = 10
+
+bulletproofM :: Integer
+bulletproofM = 10
+
+data BulletproofSetup = BulletproofSetup GroupElement GroupElement [GroupElement] [GroupElement]
     deriving (Haskell.Eq, Haskell.Show)
 
 instance Eq BulletproofSetup where
-    (==) (BulletproofSetup h g hs gs n) (BulletproofSetup h' g' hs' gs' n') =
-        h == h' && g == g' && hs == hs' && gs == gs' && n == n'
+    (==) (BulletproofSetup h g hs gs) (BulletproofSetup h' g' hs' gs') =
+        h == h' && g == g' && hs == hs' && gs == gs'
 
 unstableMakeIsData ''BulletproofSetup
 
 instance Arbitrary BulletproofSetup where
     arbitrary = do
-        let n = 10
-            m = 10
         h  <- arbitrary
         g  <- arbitrary
-        hs <- mapM (const arbitrary) [1..(n*m)]
-        gs <- mapM (const arbitrary) [1..(n*m)]
-        return $ BulletproofSetup h g hs gs n
+        hs <- mapM (const arbitrary) [1..(bulletproofN * bulletproofM)]
+        gs <- mapM (const arbitrary) [1..(bulletproofN * bulletproofM)]
+        return $ BulletproofSetup h g hs gs
 
 ------------------------------------ BulletproofParams --------------------------------------
 
@@ -69,9 +71,8 @@ instance Eq Secret where
 
 instance Arbitrary Secret where
     arbitrary = do
-        let n = 10 :: Integer
         gamma <- arbitrary
-        v     <- F . (`modulo` (2^n)) <$> arbitrary
+        v     <- F . (`modulo` (2 ^ bulletproofN)) <$> arbitrary
         return $ Secret gamma v
 
 type Secrets = [Secret]
@@ -89,11 +90,9 @@ instance Eq Randomness where
 
 instance Arbitrary Randomness where
     arbitrary = do
-        let n = 10 :: Integer
-            m = 10 :: Integer
         alpha <- arbitrary
-        sL    <- mapM (const arbitrary) [1..(n*m)]
-        sR    <- mapM (const arbitrary) [1..(n*m)]
+        sL    <- mapM (const arbitrary) [1..(bulletproofN * bulletproofM)]
+        sR    <- mapM (const arbitrary) [1..(bulletproofN * bulletproofM)]
         rho   <- arbitrary
         tau1  <- arbitrary
         Randomness alpha sL sR rho tau1 <$> arbitrary

@@ -18,7 +18,7 @@ import           ENCOINS.Core.Bulletproofs.Types
 
 {-# INLINABLE verify #-}
 verify :: BulletproofSetup -> BulletproofParams -> Integer -> Inputs -> Proof -> Bool
-verify bs@(BulletproofSetup h g _ gs n) bp val inputs (Proof commitA commitS commitT1 commitT2 taux mu lx rx tHat) = cond1 && cond2 && cond3
+verify bs@(BulletproofSetup h g _ gs) bp val inputs (Proof commitA commitS commitT1 commitT2 taux mu lx rx tHat) = cond1 && cond2 && cond3
     where
         m        = length inputs
         ps       = map inputPolarity inputs
@@ -29,8 +29,9 @@ verify bs@(BulletproofSetup h g _ gs n) bp val inputs (Proof commitA commitS com
         (x, _)   = challenge [commitT1, commitT2]
         x2       = x * x
 
-        commitP  = foldl groupMul groupIdentity (commitA : groupExp commitS x : map (`groupExp` negate z) (take (n*m) gs) ++ zipWith groupExp hs' lam)
-        twos     = powers (F 2) n
+        commitP  = foldl groupMul groupIdentity
+            (commitA : groupExp commitS x : map (`groupExp` negate z) (take (bulletproofN*m) gs) ++ zipWith groupExp hs' lam)
+        twos     = powers (F 2) bulletproofN
         s        = sum twos
         psSum    = F $ sum $ map polarityToInteger ps
         delta    = ((z - z*z) * sum ys) - z * s * sum zs - z * s * z' * psSum + z' * toFieldElement val

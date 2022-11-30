@@ -20,7 +20,7 @@ import           Crypto                           (T1, Zp (..))
 import           ENCOINS.Core.Bulletproofs.Prove  (bulletproof)
 import           ENCOINS.Core.OnChain             (bulletproofSetup)
 import           ENCOINS.Core.BaseTypes
-import           ENCOINS.Core.Bulletproofs.Types  (Secret(..), Randomness (Randomness), Proof (..), Input (..), BulletproofSetup (..), BulletproofParams, Secrets)
+import           ENCOINS.Core.Bulletproofs.Types  (Secret(..), Randomness (Randomness), Proof (..), Input (..), BulletproofSetup (..), BulletproofParams, Secrets, bulletproofN, bulletproofM)
 import           ENCOINS.Core.Bulletproofs.Utils  (challenge, powers, withPolarity, powersOfZ, fromBits, toBits, padBits, polyProduct)
 import           ENCOINS.Core.Bulletproofs.Verify (verify)
 
@@ -37,15 +37,12 @@ instance Haskell.Show TestVerification where
 
 instance Arbitrary TestVerification where
     arbitrary = do
-        let n = 10
         m <- (+1) . (`modulo` 10) <$> arbitrary
         bs <- arbitrary
         bp <- arbitrary
         secrets <- mapM (const arbitrary) [1..m]
         mps     <- mapM (const arbitrary) [1..m]
-        Randomness alpha sL sR rho tau1 tau2 <- arbitrary
-        let r = Randomness alpha (take (n*m) sL) (take (n*m) sR) rho tau1 tau2
-        return $ TestVerification bs bp secrets mps r
+        TestVerification bs bp secrets mps <$> arbitrary
 
 prop_verification :: TestVerification -> Bool
 prop_verification (TestVerification bs bp secrets mps r) = verify bs bp val ins proof
