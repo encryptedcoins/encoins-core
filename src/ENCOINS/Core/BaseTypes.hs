@@ -37,10 +37,10 @@ newtype FieldElement = F Integer
     deriving (Haskell.Eq, Haskell.Show, Generic)
     deriving anyclass (FromJSON, ToJSON)
 
+unstableMakeIsData ''FieldElement
+
 instance Eq FieldElement where
     (==) (F a) (F b) = a == b
-
-unstableMakeIsData ''FieldElement
 
 {-# INLINABLE toFieldElement #-}
 toFieldElement :: Integer -> FieldElement
@@ -125,6 +125,9 @@ instance Eq GroupElement where
             g1 = fromJ (x1, y1, z1)
             g2 = fromJ (x2, y2, z2)
 
+instance Arbitrary GroupElement where
+    arbitrary = groupExp groupGenerator . F . (`modulo` fieldPrime) <$>  arbitrary
+
 -- NOTE: demo implementation
 -- TODO: implement this
 {-# INLINABLE toGroupElement #-}
@@ -136,7 +139,7 @@ toGroupElement bs = do
             else if toBytes (even (fromZp y)) == takeByteString 1 bs
                 then Just $ GroupElement x y z
                 else Just $ GroupElement x (negate y) z
-    where 
+    where
           bs' = dropByteString 1 bs
           n = byteStringToInteger bs'
           q = 0x1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab
@@ -182,6 +185,9 @@ groupExp (GroupElement x y z) n = GroupElement x' y' z'
 
 data MintingPolarity = Mint | Burn
     deriving (Haskell.Eq, Haskell.Show, Generic, FromJSON, ToJSON)
+
+instance Arbitrary MintingPolarity where
+    arbitrary = return Mint
 
 instance Eq MintingPolarity where
     Mint == Mint = True
