@@ -19,6 +19,7 @@ module ENCOINS.Core.BaseTypes where
 
 import           Data.Aeson                (FromJSON, ToJSON)
 import           Data.Bifunctor            (Bifunctor(..))
+import           Data.Bool                 (bool)
 import           Data.Functor              ((<$>))
 import           GHC.Generics              (Generic)
 import           PlutusTx                  (makeIsDataIndexed, unstableMakeIsData)
@@ -131,7 +132,7 @@ instance Eq GroupElement where
             g2 = fromJ (x2, y2, z2)
 
 instance Arbitrary GroupElement where
-    arbitrary = groupExp groupGenerator . F . (`modulo` fieldPrime) <$>  arbitrary
+    arbitrary = groupExp groupGenerator <$> arbitrary
 
 -- NOTE: demo implementation
 -- TODO: implement this
@@ -199,6 +200,6 @@ instance Eq MintingPolarity where
     _ == _       = False
 
 instance Arbitrary MintingPolarity where
-    arbitrary = return Mint
+    arbitrary = bool Mint Burn <$> arbitrary
 
 makeIsDataIndexed ''MintingPolarity [('Mint,0),('Burn,1)]
