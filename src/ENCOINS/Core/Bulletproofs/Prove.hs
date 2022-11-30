@@ -16,7 +16,7 @@ import           ENCOINS.Core.Bulletproofs.Common
 import           ENCOINS.Core.Bulletproofs.Types
 import           ENCOINS.Core.Bulletproofs.Utils
 
--- TODO: add data correctness checks
+-- NOTE: Here we assume that all lists have the correct number of elements.
 bulletproof :: BulletproofSetup -> BulletproofParams -> Secrets -> [MintingPolarity] -> Randomness -> (Integer, Inputs, Proof)
 bulletproof bs@(BulletproofSetup h g hs gs n) bp secrets ps (Randomness alpha sL sR rho tau1 tau2) = (val, zipWith Input commitVs ps,
         Proof commitA commitS commitT1 commitT2 taux mu lx rx tHat)

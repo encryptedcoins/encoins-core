@@ -11,13 +11,11 @@ module ENCOINS.Core.Bulletproofs.Verify where
 
 import           PlutusTx.Prelude
 
-import           Crypto.Curve                     (fromJ)
 import           ENCOINS.Core.BaseTypes
 import           ENCOINS.Core.Bulletproofs.Common
 import           ENCOINS.Core.Bulletproofs.Utils  (challenge, powers, polarityToInteger)
 import           ENCOINS.Core.Bulletproofs.Types
 
--- TODO: add data correctness checks
 {-# INLINABLE verify #-}
 verify :: BulletproofSetup -> BulletproofParams -> Integer -> Inputs -> Proof -> Bool
 verify bs@(BulletproofSetup h g _ gs n) bp val inputs (Proof commitA commitS commitT1 commitT2 taux mu lx rx tHat) = cond1 && cond2 && cond3
@@ -37,11 +35,11 @@ verify bs@(BulletproofSetup h g _ gs n) bp val inputs (Proof commitA commitS com
         psSum    = F $ sum $ map polarityToInteger ps
         delta    = ((z - z*z) * sum ys) - z * s * sum zs - z * s * z' * psSum + z' * toFieldElement val
 
-        cond1    = fromJ (groupExp g tHat `groupMul` groupExp h taux) ==
-            fromJ (groupExp g delta
+        cond1    = groupExp g tHat `groupMul` groupExp h taux ==
+            groupExp g delta
             `groupMul` foldl groupMul groupIdentity (zipWith groupExp commitVs zs)
             `groupMul` groupExp commitT1 x
-            `groupMul` groupExp commitT2 x2)
-        cond2    = fromJ commitP == fromJ (foldl groupMul groupIdentity (groupExp h mu : zipWith groupExp gs lx ++ zipWith groupExp hs' rx))
+            `groupMul` groupExp commitT2 x2
+        cond2    = commitP == foldl groupMul groupIdentity (groupExp h mu : zipWith groupExp gs lx ++ zipWith groupExp hs' rx)
         cond3    = tHat == foldl (+) zero (zipWith (*) lx rx)
 
