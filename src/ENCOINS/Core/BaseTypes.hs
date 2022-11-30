@@ -15,7 +15,6 @@
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
-
 module ENCOINS.Core.BaseTypes where
 
 import           Data.Aeson                (FromJSON, ToJSON)
@@ -32,15 +31,19 @@ import           Test.QuickCheck           (Arbitrary(..))
 import           Crypto                    (T1, toZp, fromZp, addJ, mulJ, dblJ, fromXJ, CurvePoint (..), fromJ)
 import           Utils.ByteString          (toBytes, byteStringToInteger)
 
+------------------------------------- Field Element --------------------------------------
 
 newtype FieldElement = F Integer
-    deriving (Haskell.Eq, Haskell.Show, Generic)
+    deriving (Haskell.Show, Generic)
     deriving anyclass (FromJSON, ToJSON)
 
 unstableMakeIsData ''FieldElement
 
+instance Haskell.Eq FieldElement where
+    (==) = (==)
+
 instance Eq FieldElement where
-    (==) (F a) (F b) = a == b
+    (==) (F a) (F b) = modulo (a - b) fieldPrime == 0
 
 {-# INLINABLE toFieldElement #-}
 toFieldElement :: Integer -> FieldElement
@@ -48,7 +51,7 @@ toFieldElement a = F $ modulo a fieldPrime
 
 {-# INLINABLE fromFieldElement #-}
 fromFieldElement :: FieldElement -> Integer
-fromFieldElement (F a) = a
+fromFieldElement (F a) = modulo a fieldPrime
 
 {-# INLINABLE fieldPrime #-}
 fieldPrime :: Integer
@@ -108,6 +111,8 @@ instance Random FieldElement where
     randomRs (F a, F b)  = map F . randomRs (a, b)
     random               = randomR (zero, F $ fieldPrime - 1)
     randoms              = map F . randoms
+
+------------------------------------- Group Element --------------------------------------
 
 -- NOTE: demo implementation
 -- TODO: implement this
@@ -183,15 +188,17 @@ groupExp :: GroupElement -> FieldElement -> GroupElement
 groupExp (GroupElement x y z) n = GroupElement x' y' z'
     where (x', y', z') = mulJ (x, y, z) $ fromFieldElement n
 
+------------------------------------- Minting Polarity --------------------------------------
+
 data MintingPolarity = Mint | Burn
     deriving (Haskell.Eq, Haskell.Show, Generic, FromJSON, ToJSON)
-
-instance Arbitrary MintingPolarity where
-    arbitrary = return Mint
 
 instance Eq MintingPolarity where
     Mint == Mint = True
     Burn == Burn = True
     _ == _       = False
+
+instance Arbitrary MintingPolarity where
+    arbitrary = return Mint
 
 makeIsDataIndexed ''MintingPolarity [('Mint,0),('Burn,1)]
