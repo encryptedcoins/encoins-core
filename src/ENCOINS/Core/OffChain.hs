@@ -14,7 +14,7 @@ module ENCOINS.Core.OffChain where
 import           Control.Monad.State                            (when)
 import           Data.Functor                                   (($>), (<$>))
 import           Data.Maybe                                     (fromJust)
-import           Ledger                                         (ChainIndexTxOut(..))
+import           Ledger                                         (DecoratedTxOut(..), _decoratedTxOutAddress)
 import           Ledger.Ada                                     (lovelaceValueOf)
 import           Ledger.Address                                 (PaymentPubKeyHash (..))
 import           Ledger.Tokens                                  (token)
@@ -64,7 +64,7 @@ encoin par a = token $ encoinsAssetClass par a
 
 encoinsBurnTx :: EncoinsParams -> BuiltinByteString -> TransactionBuilder ()
 encoinsBurnTx beaconSymb bs = do
-    let f = \_ o -> _ciTxOutValue o `geq` encoin beaconSymb bs
+    let f = \_ o -> _decoratedTxOutValue o `geq` encoin beaconSymb bs
     res1 <- utxoSpentPublicKeyTx' f
     res2 <- utxoSpentScriptTx' f (const . const $ ledgerValidator) (const . const $ ())
     failTx (res1 >> res2) $> ()
@@ -81,7 +81,7 @@ encoinsTx beaconSymb red@((v, _, pkh, (_, _)), inputs, _)  = do
     stakingModifyTx (encoinsSymbol beaconSymb) val
     -- validatedInIntervalTx tFrom tTo
     mustBeSignedByTx $ PaymentPubKeyHash pkh
-    -- utxoReferencedTx (\_ o -> _ciTxOutAddress o == addr && _ciTxOutValue o `geq` beacon) $> ()
+    -- utxoReferencedTx (\_ o -> _decoratedTxOutAddress o == addr && _decoratedTxOutValue o `geq` beacon) $> ()
 
 ------------------------------------- ADA Staking Validator --------------------------------------
 
@@ -97,8 +97,8 @@ stakingValidatorAddress = validatorAddress . stakingTypedValidator
 -- Spend utxo greater than the given value from the Staking script.
 stakingSpendTx' :: StakingParams -> Value -> TransactionBuilder (Maybe Value)
 stakingSpendTx' par val =
-    fmap (_ciTxOutValue . snd) <$> utxoSpentScriptTx'
-        (\_ o -> _ciTxOutValue o `geq` val && isAdaOnlyValue (_ciTxOutValue o) && _ciTxOutAddress o == stakingValidatorAddress par)
+    fmap (_decoratedTxOutValue . snd) <$> utxoSpentScriptTx'
+        (\_ o -> _decoratedTxOutValue o `geq` val && isAdaOnlyValue (_decoratedTxOutValue o) && _decoratedTxOutAddress o == stakingValidatorAddress par)
         (const . const $ stakingValidator par) (const . const $ ())
 
 -- Spend utxo greater than the given value from the Staking script. Fails if the utxo is not found.
@@ -138,6 +138,6 @@ ledgerValidatorAddress = validatorAddress ledgerTypedValidator
 ledgerTx :: EncoinsParams -> [BuiltinByteString] -> TransactionBuilder ()
 ledgerTx par gs =
     let vals = map (encoin par) gs
-    in mapM_ (\val -> utxoSpentScriptTx (\_ o -> _ciTxOutValue o `geq` val)
+    in mapM_ (\val -> utxoSpentScriptTx (\_ o -> _decoratedTxOutValue o `geq` val)
         (const . const $ ledgerValidator) (const . const $ ())) vals
         
