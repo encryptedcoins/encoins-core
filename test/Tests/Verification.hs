@@ -20,10 +20,9 @@ import           Crypto                           (T1, Zp (..))
 import           ENCOINS.Core.Bulletproofs.Prove  (bulletproof)
 import           ENCOINS.Core.OnChain             (bulletproofSetup)
 import           ENCOINS.Core.BaseTypes
-import           ENCOINS.Core.Bulletproofs.Types  (Secret(..), Randomness (Randomness), Proof (..), Input (..), BulletproofSetup (..), BulletproofParams, Secrets, bulletproofN, bulletproofM)
+import           ENCOINS.Core.Bulletproofs.Types  
 import           ENCOINS.Core.Bulletproofs.Utils  (challenge, powers, withPolarity, powersOfZ, fromBits, toBits, padBits, polyProduct)
 import           ENCOINS.Core.Bulletproofs.Verify (verify)
-
 
 data TestVerification = TestVerification BulletproofSetup BulletproofParams Secrets [MintingPolarity] Randomness
     deriving (Haskell.Eq)
