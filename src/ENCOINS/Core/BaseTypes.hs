@@ -30,7 +30,7 @@ import           System.Random.Stateful    (Uniform(..), UniformRange (..))
 import           Test.QuickCheck           (Arbitrary(..))
 
 import           Crypto                    (T1, toZp, fromZp, addJ, mulJ, dblJ, fromXJ, CurvePoint (..), fromJ)
-import           Utils.ByteString          (toBytes, byteStringToInteger)
+import           Utils.ByteString          (toBytes, byteStringToInteger, ToBuiltinByteString)
 
 ------------------------------------- Field Element --------------------------------------
 
@@ -95,6 +95,10 @@ instance Group FieldElement where
                     | otherwise  = f (x', y') (x - q * x', y - q * y')
           where q = divide x x'
 
+instance ToBuiltinByteString FieldElement where
+    {-# INLINABLE toBytes #-}
+    toBytes (F a) = toBytes a
+
 instance Arbitrary FieldElement where
   {-# INLINABLE arbitrary #-}
   arbitrary = do
@@ -130,6 +134,11 @@ instance Eq GroupElement where
         where
             g1 = fromJ (x1, y1, z1)
             g2 = fromJ (x2, y2, z2)
+
+-- NOTE: equal elements do not necessarily produce equal BuiltinByteStrings
+instance ToBuiltinByteString GroupElement where
+    {-# INLINABLE toBytes #-}
+    toBytes (GroupElement x y z) = toBytes $ map fromZp [x, y, z]
 
 instance Arbitrary GroupElement where
     arbitrary = groupExp groupGenerator <$> arbitrary
@@ -201,5 +210,9 @@ instance Eq MintingPolarity where
 
 instance Arbitrary MintingPolarity where
     arbitrary = bool Mint Burn <$> arbitrary
+
+instance ToBuiltinByteString MintingPolarity where
+    {-# INLINABLE toBytes #-}
+    toBytes = toBytes . (==) Mint
 
 makeIsDataIndexed ''MintingPolarity [('Mint,0),('Burn,1)]

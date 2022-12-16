@@ -37,6 +37,8 @@ library
       ENCOINS.Core.Bulletproofs.Verify
       ENCOINS.Core.OffChain
       ENCOINS.Core.OnChain
+      ENCOINS.Core.V1.OffChain
+      ENCOINS.Core.V1.OnChain
     build-depends:
       base                          >= 4.9 && < 5,
       base16-bytestring                      -any,

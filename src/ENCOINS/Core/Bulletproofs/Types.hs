@@ -24,6 +24,7 @@ import qualified Prelude                            as Haskell
 import           Test.QuickCheck                    (Arbitrary(..))
 
 import           ENCOINS.Core.BaseTypes             (GroupElement, FieldElement (..), MintingPolarity)
+import Utils.ByteString (ToBuiltinByteString (..))
 
 ------------------------------------- BulletproofSetup --------------------------------------
 
@@ -117,6 +118,12 @@ type Inputs = [Input]
 
 data Proof = Proof GroupElement GroupElement GroupElement GroupElement FieldElement FieldElement [FieldElement] [FieldElement] FieldElement
     deriving (Haskell.Eq, Haskell.Show, Generic, FromJSON, ToJSON)
+
+instance ToBuiltinByteString Proof where
+    {-# INLINABLE toBytes #-}
+    toBytes (Proof commitA commitS commitT1 commitT2 taux mu lx rx tHat) =
+        toBytes [commitA, commitS, commitT1, commitT2] `appendByteString`
+        toBytes ([taux, mu, tHat] ++ lx ++ rx)
 
 unstableMakeIsData ''Proof
 
