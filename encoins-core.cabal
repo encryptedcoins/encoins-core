@@ -28,13 +28,6 @@ common lang
 library
     import: lang
     exposed-modules:
-      ENCOINS.Core.BaseTypes
-      ENCOINS.Core.Bulletproofs
-      ENCOINS.Core.Bulletproofs.Common
-      ENCOINS.Core.Bulletproofs.Prove
-      ENCOINS.Core.Bulletproofs.Types
-      ENCOINS.Core.Bulletproofs.Utils
-      ENCOINS.Core.Bulletproofs.Verify
       ENCOINS.Core.OffChain
       ENCOINS.Core.OnChain
       ENCOINS.Core.V1.OffChain
@@ -49,11 +42,11 @@ library
       cardano-crypto-class                   -any,
       cardano-ledger-alonzo                  -any,
       cardano-ledger-core                    -any,
-      cardano-mixer-common                   -any,
       cborg                                  -any,
       containers                             -any,
       data-default                           -any,
       directory                              -any,
+      encoins-bulletproofs                   -any,
       extra                                  -any,
       file-embed                             -any,
       freer-extras                           -any,
@@ -71,6 +64,7 @@ library
       plutus-chain-index-core                -any,
       plutus-tx-plugin                       -any,
       plutus-tx                              -any,
+      plutus-tx-extra                        -any,
       plutus-ledger                          -any,
       plutus-ledger-api                      -any,
       plutus-ledger-constraints              -any,
@@ -86,33 +80,3 @@ library
       uuid                                   -any
 
     hs-source-dirs: src
-
-test-suite encoins-core-test
-  Type:                 exitcode-stdio-1.0
-  Default-Language:     Haskell2010
-  Hs-Source-Dirs:       test
-  Ghc-Options:          -rtsopts
-  Main-Is:              Main.hs
-  Other-Modules:        Tests.Verification
-  Build-Depends:
-    base                                   -any,
-    aeson                                  -any,
-    bytestring                             -any,
-    cardano-mixer-common                   -any,
-    containers                             -any,
-    encoins-core                           -any,
-    generic-arbitrary                      -any,
-    plutus-common                          -any,
-    plutus-contract                        -any,
-    plutus-chain-index                     -any,
-    plutus-chain-index-core                -any,
-    plutus-tx-plugin                       -any,
-    plutus-tx                              -any,
-    plutus-ledger                          -any,
-    plutus-ledger-api                      -any,
-    plutus-ledger-constraints              -any,
-    plutus-script-utils                    -any,
-    plutus-use-cases                       -any,
-    QuickCheck                             -any,
-    random                                 -any,
-    text                                   -any

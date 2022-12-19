@@ -33,10 +33,12 @@ import           PlutusTx.AssocMap                    (lookup)
 import           PlutusTx.Prelude
 
 import           Constraints.OnChain                  (tokensMinted, filterUtxoSpent, filterUtxoProduced, utxoReferenced)
-import           ENCOINS.Core.Bulletproofs
-import           ENCOINS.Core.BaseTypes
+import           ENCOINS.Bulletproofs
+import           ENCOINS.BaseTypes
+import           ENCOINS.Crypto.Field
+import           PlutusTx.Extra.ByteString            (ToBuiltinByteString(..))
 import           Scripts.OneShotCurrency              (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
-import           Utils.ByteString                     (ToBuiltinByteString(..))
+import           Utils.Orphans                        ()
 
 ------------------------------------- Beacon Minting Policy --------------------------------------
 

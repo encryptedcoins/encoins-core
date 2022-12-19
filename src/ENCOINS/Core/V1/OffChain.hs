@@ -25,8 +25,8 @@ import           Plutus.V2.Ledger.Api
 import           PlutusTx.Prelude                               hiding ((<$>))
 
 import           Constraints.OffChain
-import           ENCOINS.Core.BaseTypes                         (MintingPolarity (..))
-import           ENCOINS.Core.Bulletproofs.Utils                (polarityToInteger)
+import           ENCOINS.BaseTypes                              (MintingPolarity (..))
+import           ENCOINS.Bulletproofs                           (polarityToInteger)
 import           ENCOINS.Core.V1.OnChain
 import           Scripts.OneShotCurrency                        (oneShotCurrencyMintTx)
 import           Types.Tx                                       (TransactionBuilder)

@@ -16,7 +16,7 @@ import           Plutus.Script.Utils.V2.Typed.Scripts (TypedValidator)
 import           Plutus.V2.Ledger.Api
 import           PlutusTx.Prelude
 
-import           ENCOINS.Core.Bulletproofs            (BulletproofSetup)
+import           ENCOINS.Bulletproofs                 (BulletproofSetup)
 import           ENCOINS.Core.V1.OnChain              as V1
 import           Scripts.OneShotCurrency              (OneShotCurrencyParams)
 
