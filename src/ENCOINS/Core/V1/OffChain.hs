@@ -30,6 +30,10 @@ import           ENCOINS.Bulletproofs                           (polarityToInteg
 import           ENCOINS.Core.V1.OnChain
 import           Scripts.OneShotCurrency                        (oneShotCurrencyMintTx)
 import           Types.Tx                                       (TransactionBuilder)
+import Text.Hex (decodeHex)
+
+verifierPKH ::BuiltinByteString
+verifierPKH = toBuiltin $ fromJust $ decodeHex "FA729A50432E19737EEEEA0BFD8E673D41973E7ACE17A2EEDB2119F6F989108A"
 
 ------------------------------------- Beacon Minting Policy --------------------------------------
 
@@ -47,7 +51,7 @@ beaconMintTx ref = oneShotCurrencyMintTx (beaconParams ref) $> ()
 
 beaconSendTx :: TxOutRef -> TransactionBuilder ()
 beaconSendTx ref = utxoProducedScriptTx vh Nothing v ()
-  where vh = stakingValidatorHash $ encoinsSymbol $ beaconCurrencySymbol ref
+  where vh = stakingValidatorHash $ encoinsSymbol (beaconCurrencySymbol ref, verifierPKH)
         v  = beaconToken ref + lovelaceValueOf 2_000_000
 
 ----------------------------------- ENCOINS Minting Policy ---------------------------------------
@@ -69,14 +73,14 @@ encoinsBurnTx beaconSymb bs = do
     failTx (res1 >> res2) $> ()
 
 encoinsTx :: EncoinsParams -> EncoinsRedeemer -> TransactionBuilder ()
-encoinsTx beaconSymb red@(addr, (v, inputs), _, _)  = do
+encoinsTx par@(beaconSymb, _) red@(addr, (v, inputs), _, _)  = do
     let beacon      = token (AssetClass (beaconSymb, beaconTokenName))
         coinsToBurn = filter (\(_, p) -> p == Burn) inputs
         val         = lovelaceValueOf (v * 1_000_000)
-        valEncoins  = sum $ map (\(bs, p) -> scale (polarityToInteger p) (encoin beaconSymb (sha2_256 bs))) inputs
-    mapM_ (encoinsBurnTx beaconSymb . fst) coinsToBurn
-    tokensMintedTx (encoinsPolicy beaconSymb) red valEncoins
-    stakingModifyTx (encoinsSymbol beaconSymb) val
+        valEncoins  = sum $ map (\(bs, p) -> scale (polarityToInteger p) (encoin par (sha2_256 bs))) inputs
+    mapM_ (encoinsBurnTx par . fst) coinsToBurn
+    tokensMintedTx (encoinsPolicy par) red valEncoins
+    stakingModifyTx (encoinsSymbol par) val
     when (v > 0) $
         utxoReferencedTx (\_ o -> _decoratedTxOutAddress o == addr && _decoratedTxOutValue o `geq` beacon) $> ()
     when (v < 0) $ fromMaybe (failTx Nothing $> ()) $ do

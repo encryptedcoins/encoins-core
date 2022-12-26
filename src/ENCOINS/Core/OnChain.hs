@@ -38,9 +38,6 @@ beaconPolicy = V1.beaconPolicy
 bulletproofSetup :: BulletproofSetup
 bulletproofSetup = V1.bulletproofSetup
 
-verifierPKH :: BuiltinByteString
-verifierPKH = V1.verifierPKH
-
 type EncoinsParams = V1.EncoinsParams
 
 type TxParams = V1.TxParams

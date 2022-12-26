@@ -60,11 +60,8 @@ bulletproofSetup = BulletproofSetup groupGenerator (groupExp groupGenerator (toF
   (map (groupExp groupGenerator . toFieldElement) [3..(bulletproofN * bulletproofM + 2)])
   (map (groupExp groupGenerator . toFieldElement) [(bulletproofN * bulletproofM + 3)..(2 * (bulletproofN * bulletproofM) + 2)])
 
-verifierPKH :: BuiltinByteString
-verifierPKH = emptyByteString
-
--- Beacon currency symbol
-type EncoinsParams = CurrencySymbol
+-- Beacon currency symbol and verifierPKH
+type EncoinsParams = (CurrencySymbol, BuiltinByteString)
 
 type TxParams = Address
 type EncoinsInput = (Integer, [(BuiltinByteString, MintingPolarity)])
@@ -80,7 +77,7 @@ encoinName = TokenName . sha2_256
 
 -- TODO: remove on-chain sorting (requires sorting inputs and proof components)
 encoinsPolicyCheck :: EncoinsParams -> EncoinsRedeemer -> ScriptContext -> Bool
-encoinsPolicyCheck beaconSymb red@(addr, (v, inputs), _, sig)
+encoinsPolicyCheck (beaconSymb, verifierPKH) red@(addr, (v, inputs), _, sig)
     ctx@ScriptContext{scriptContextTxInfo=info} =
       cond0
       && cond1
