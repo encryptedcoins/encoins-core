@@ -30,7 +30,7 @@ import           ENCOINS.BaseTypes                              (MintingPolarity
 import           ENCOINS.Bulletproofs                           (polarityToInteger)
 import           ENCOINS.Core.V1.OnChain
 import           Scripts.OneShotCurrency                        (oneShotCurrencyMintTx)
-import           Types.Tx                                       (TransactionBuilder, TxConstructorError (..))
+import           Types.Tx                                       (TransactionBuilder)
 
 verifierPKH ::BuiltinByteString
 verifierPKH = toBuiltin $ fromJust $ decodeHex "FA729A50432E19737EEEEA0BFD8E673D41973E7ACE17A2EEDB2119F6F989108A"
@@ -70,8 +70,7 @@ encoinsBurnTx beaconSymb bs = do
     let f = \_ o -> _decoratedTxOutValue o `geq` encoin beaconSymb bs
     res1 <- utxoSpentPublicKeyTx' f
     res2 <- utxoSpentScriptTx' f (const . const $ ledgerValidator) (const . const $ ())
-    let e = TxConstructorError "encoinsBurnTx" "Cannot find the required coin"
-    failTx e (res1 >> res2) $> ()
+    failTx "encoinsBurnTx" "Cannot find the required coin" (res1 >> res2) $> ()
 
 encoinsTx :: EncoinsParams -> EncoinsRedeemer -> TransactionBuilder ()
 encoinsTx par@(beaconSymb, _) red@(addr, (v, inputs), _, _)  = do
@@ -84,8 +83,7 @@ encoinsTx par@(beaconSymb, _) red@(addr, (v, inputs), _, _)  = do
     stakingModifyTx (encoinsSymbol par) val
     when (v > 0) $
         utxoReferencedTx (\_ o -> _decoratedTxOutAddress o == addr && _decoratedTxOutValue o `geq` beacon) $> ()
-    let e = TxConstructorError "encoinsTx" "The address in the redeemer is not locked by a public key"
-    when (v < 0) $ fromMaybe (failTx e Nothing $> ()) $ do
+    when (v < 0) $ fromMaybe (failTx "encoinsTx" "The address in the redeemer is not locked by a public key" Nothing $> ()) $ do
         pkh <- toPubKeyHash addr
         return $ utxoProducedPublicKeyTx (PaymentPubKeyHash pkh) (stakingCredential addr) (negate val) (Nothing :: Maybe ())
 
@@ -109,8 +107,7 @@ stakingSpendTx' par val =
 
 -- Spend utxo greater than the given value from the Staking script. Fails if the utxo is not found.
 stakingSpendTx :: StakingParams -> Value -> TransactionBuilder (Maybe Value)
-stakingSpendTx par val = let e = TxConstructorError "stakingSpendTx" "Cannot find a suitable utxo to spend"
-    in stakingSpendTx' par val >>= failTx e
+stakingSpendTx par val = stakingSpendTx' par val >>= failTx "stakingSpendTx" "Cannot find a suitable utxo to spend"
 
 -- Combines several utxos into one.
 stakingCombineTx :: StakingParams -> Value -> Integer -> TransactionBuilder ()
