@@ -75,8 +75,7 @@ main = do
             (v, inputs'), proof, sig)
         msg = hashRedeemer red
         sig = toBuiltin $ fromJust $ decodeHex "AF26CA8095F1CD9996237878DDF2380FAAF64D045D1C7B1EBB6F1C25F450FA88D4AEBED827878FD8ACEF7C7501C4E2C1884F5FFB8C3ADED7CD607A7425705D0A"
-    writeFile "Schema" $ mkSchema $ builtinDataToData $ toBuiltinData red
-    print $ toJSON red
+    writeFile "testnet/Schema" $ mkSchema $ builtinDataToData $ toBuiltinData red
     print $ encodeHex $ fromBuiltin $ serialiseData $ toBuiltinData red
     
     print "Done!"

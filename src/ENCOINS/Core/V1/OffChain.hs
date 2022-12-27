@@ -23,14 +23,14 @@ import           Plutus.Script.Utils.V2.Scripts                 (validatorHash, 
 import           Plutus.Script.Utils.V2.Typed.Scripts           (validatorScript, validatorAddress)
 import           Plutus.V2.Ledger.Api
 import           PlutusTx.Prelude                               hiding ((<$>))
+import           Text.Hex                                       (decodeHex)
 
 import           Constraints.OffChain
 import           ENCOINS.BaseTypes                              (MintingPolarity (..))
 import           ENCOINS.Bulletproofs                           (polarityToInteger)
 import           ENCOINS.Core.V1.OnChain
 import           Scripts.OneShotCurrency                        (oneShotCurrencyMintTx)
-import           Types.Tx                                       (TransactionBuilder)
-import Text.Hex (decodeHex)
+import           Types.Tx                                       (TransactionBuilder, TxConstructorError (..))
 
 verifierPKH ::BuiltinByteString
 verifierPKH = toBuiltin $ fromJust $ decodeHex "FA729A50432E19737EEEEA0BFD8E673D41973E7ACE17A2EEDB2119F6F989108A"
@@ -70,7 +70,8 @@ encoinsBurnTx beaconSymb bs = do
     let f = \_ o -> _decoratedTxOutValue o `geq` encoin beaconSymb bs
     res1 <- utxoSpentPublicKeyTx' f
     res2 <- utxoSpentScriptTx' f (const . const $ ledgerValidator) (const . const $ ())
-    failTx (res1 >> res2) $> ()
+    let e = TxConstructorError "encoinsBurnTx" "Cannot find the required coin"
+    failTx e (res1 >> res2) $> ()
 
 encoinsTx :: EncoinsParams -> EncoinsRedeemer -> TransactionBuilder ()
 encoinsTx par@(beaconSymb, _) red@(addr, (v, inputs), _, _)  = do
@@ -83,7 +84,8 @@ encoinsTx par@(beaconSymb, _) red@(addr, (v, inputs), _, _)  = do
     stakingModifyTx (encoinsSymbol par) val
     when (v > 0) $
         utxoReferencedTx (\_ o -> _decoratedTxOutAddress o == addr && _decoratedTxOutValue o `geq` beacon) $> ()
-    when (v < 0) $ fromMaybe (failTx Nothing $> ()) $ do
+    let e = TxConstructorError "encoinsTx" "The address in the redeemer is not locked by a public key"
+    when (v < 0) $ fromMaybe (failTx e Nothing $> ()) $ do
         pkh <- toPubKeyHash addr
         return $ utxoProducedPublicKeyTx (PaymentPubKeyHash pkh) (stakingCredential addr) (negate val) (Nothing :: Maybe ())
 
@@ -107,7 +109,8 @@ stakingSpendTx' par val =
 
 -- Spend utxo greater than the given value from the Staking script. Fails if the utxo is not found.
 stakingSpendTx :: StakingParams -> Value -> TransactionBuilder (Maybe Value)
-stakingSpendTx par val = stakingSpendTx' par val >>= failTx
+stakingSpendTx par val = let e = TxConstructorError "stakingSpendTx" "Cannot find a suitable utxo to spend"
+    in stakingSpendTx' par val >>= failTx e
 
 -- Combines several utxos into one.
 stakingCombineTx :: StakingParams -> Value -> Integer -> TransactionBuilder ()
