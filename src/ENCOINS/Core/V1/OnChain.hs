@@ -36,6 +36,7 @@ import           Constraints.OnChain                  (tokensMinted, filterUtxoS
 import           ENCOINS.Bulletproofs
 import           ENCOINS.BaseTypes
 import           ENCOINS.Crypto.Field
+import           ENCOINS.Orphans                      ()
 import           PlutusTx.Extra.ByteString            (ToBuiltinByteString(..))
 import           Scripts.OneShotCurrency              (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
 import           Utils.Orphans                        ()
