@@ -14,8 +14,8 @@ module ENCOINS.Core.V1.OffChain where
 import           Control.Monad.State                            (when)
 import           Data.Functor                                   (($>), (<$>))
 import           Data.Maybe                                     (fromJust)
-import           Ledger                                         (DecoratedTxOut(..), _decoratedTxOutAddress)
-import           Ledger.Ada                                     (lovelaceValueOf)
+import           Ledger                                         (DecoratedTxOut(..), _decoratedTxOutAddress, minAdaTxOut)
+import           Ledger.Ada                                     (lovelaceValueOf, toValue)
 import           Ledger.Address                                 (PaymentPubKeyHash (..), toPubKeyHash, stakingCredential)
 import           Ledger.Tokens                                  (token)
 import           Ledger.Value                                   (AssetClass (..), geq, isAdaOnlyValue, gt, lt)
@@ -34,6 +34,12 @@ import           Types.Tx                                       (TransactionBuil
 
 verifierPKH ::BuiltinByteString
 verifierPKH = toBuiltin $ fromJust $ decodeHex "FA729A50432E19737EEEEA0BFD8E673D41973E7ACE17A2EEDB2119F6F989108A"
+
+relayFee :: Value
+relayFee = lovelaceValueOf 3_000_000
+
+minValueTxOut :: Value
+minValueTxOut = toValue minAdaTxOut
 
 ------------------------------------- Beacon Minting Policy --------------------------------------
 
@@ -56,6 +62,8 @@ beaconSendTx ref = utxoProducedScriptTx vh Nothing v ()
 
 ----------------------------------- ENCOINS Minting Policy ---------------------------------------
 
+type EncoinsRedeemerWithData = (Address, EncoinsRedeemer)
+
 encoinsSymbol :: EncoinsParams -> CurrencySymbol
 encoinsSymbol = scriptCurrencySymbol . encoinsPolicy
 
@@ -70,10 +78,10 @@ encoinsBurnTx beaconSymb bs = do
     let f = \_ o -> _decoratedTxOutValue o `geq` encoin beaconSymb bs
     res1 <- utxoSpentPublicKeyTx' f
     res2 <- utxoSpentScriptTx' f (const . const $ ledgerValidator) (const . const $ ())
-    failTx "encoinsBurnTx" "Cannot find the required coin" (res1 >> res2) $> ()
+    failTx "encoinsBurnTx" "Cannot find the required coin." (res1 >> res2) $> ()
 
-encoinsTx :: EncoinsParams -> EncoinsRedeemer -> TransactionBuilder ()
-encoinsTx par@(beaconSymb, _) red@(addr, (v, inputs), _, _)  = do
+encoinsTx :: EncoinsParams -> EncoinsRedeemerWithData -> TransactionBuilder ()
+encoinsTx par@(beaconSymb, _) (changeAddr, red@(addr, (v, inputs), _, _))  = do
     let beacon      = token (AssetClass (beaconSymb, beaconTokenName))
         coinsToBurn = filter (\(_, p) -> p == Burn) inputs
         val         = lovelaceValueOf (v * 1_000_000)
@@ -81,9 +89,17 @@ encoinsTx par@(beaconSymb, _) red@(addr, (v, inputs), _, _)  = do
     mapM_ (encoinsBurnTx par . fst) coinsToBurn
     tokensMintedTx (encoinsPolicy par) red valEncoins
     stakingModifyTx (encoinsSymbol par) val
-    when (v > 0) $
+    when (v > 0) $ do
+        res <- utxoSpentPublicKeyTx (\_ o -> _decoratedTxOutValue o `geq` (val + relayFee))
+        fromMaybe (failTx "encoinsTx" "Cannot add user inputs/outputs." Nothing $> ()) $ do
+            (_, o) <- res
+            changePKH <- toPubKeyHash changeAddr
+            let valChange = _decoratedTxOutValue o - val - relayFee
+            if valChange `geq` minValueTxOut
+                then return $ utxoProducedPublicKeyTx (PaymentPubKeyHash changePKH) (stakingCredential changeAddr) valChange (Nothing :: Maybe ())
+                else pure $ failTx "encoinsTx" "Cannot add a user output." Nothing $> ()
         utxoReferencedTx (\_ o -> _decoratedTxOutAddress o == addr && _decoratedTxOutValue o `geq` beacon) $> ()
-    when (v < 0) $ fromMaybe (failTx "encoinsTx" "The address in the redeemer is not locked by a public key" Nothing $> ()) $ do
+    when (v < 0) $ fromMaybe (failTx "encoinsTx" "The address in the redeemer is not locked by a public key." Nothing $> ()) $ do
         pkh <- toPubKeyHash addr
         return $ utxoProducedPublicKeyTx (PaymentPubKeyHash pkh) (stakingCredential addr) (negate val) (Nothing :: Maybe ())
 
@@ -107,7 +123,7 @@ stakingSpendTx' par val =
 
 -- Spend utxo greater than the given value from the Staking script. Fails if the utxo is not found.
 stakingSpendTx :: StakingParams -> Value -> TransactionBuilder (Maybe Value)
-stakingSpendTx par val = stakingSpendTx' par val >>= failTx "stakingSpendTx" "Cannot find a suitable utxo to spend"
+stakingSpendTx par val = stakingSpendTx' par val >>= failTx "stakingSpendTx" "Cannot find a suitable utxo to spend."
 
 -- Combines several utxos into one.
 stakingCombineTx :: StakingParams -> Value -> Integer -> TransactionBuilder ()
