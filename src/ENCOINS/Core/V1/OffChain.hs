@@ -14,8 +14,8 @@ module ENCOINS.Core.V1.OffChain where
 import           Control.Monad.State                            (when)
 import           Data.Functor                                   (($>), (<$>))
 import           Data.Maybe                                     (fromJust)
-import           Ledger                                         (DecoratedTxOut(..), _decoratedTxOutAddress, minAdaTxOut)
-import           Ledger.Ada                                     (lovelaceValueOf, toValue)
+import           Ledger                                         (DecoratedTxOut(..), _decoratedTxOutAddress)
+import           Ledger.Ada                                     (lovelaceValueOf)
 import           Ledger.Address                                 (PaymentPubKeyHash (..), toPubKeyHash, stakingCredential)
 import           Ledger.Tokens                                  (token)
 import           Ledger.Value                                   (AssetClass (..), geq, isAdaOnlyValue, gt, lt)
@@ -36,10 +36,7 @@ verifierPKH ::BuiltinByteString
 verifierPKH = toBuiltin $ fromJust $ decodeHex "FA729A50432E19737EEEEA0BFD8E673D41973E7ACE17A2EEDB2119F6F989108A"
 
 relayFee :: Value
-relayFee = lovelaceValueOf 3_000_000
-
-minValueTxOut :: Value
-minValueTxOut = toValue minAdaTxOut
+relayFee = lovelaceValueOf 2_000_000
 
 ------------------------------------- Beacon Minting Policy --------------------------------------
 
@@ -81,7 +78,7 @@ encoinsBurnTx beaconSymb bs = do
     failTx "encoinsBurnTx" "Cannot find the required coin." (res1 >> res2) $> ()
 
 encoinsTx :: EncoinsParams -> EncoinsRedeemerWithData -> TransactionBuilder ()
-encoinsTx par@(beaconSymb, _) (changeAddr, red@(addr, (v, inputs), _, _))  = do
+encoinsTx par@(beaconSymb, _) (_, red@(addr, (v, inputs), _, _))  = do
     let beacon      = token (AssetClass (beaconSymb, beaconTokenName))
         coinsToBurn = filter (\(_, p) -> p == Burn) inputs
         val         = lovelaceValueOf (v * 1_000_000)
@@ -90,14 +87,14 @@ encoinsTx par@(beaconSymb, _) (changeAddr, red@(addr, (v, inputs), _, _))  = do
     tokensMintedTx (encoinsPolicy par) red valEncoins
     stakingModifyTx (encoinsSymbol par) val
     when (v > 0) $ do
-        res <- utxoSpentPublicKeyTx (\_ o -> _decoratedTxOutValue o `geq` (val + relayFee))
-        fromMaybe (failTx "encoinsTx" "Cannot add user inputs/outputs." Nothing $> ()) $ do
-            (_, o) <- res
-            changePKH <- toPubKeyHash changeAddr
-            let valChange = _decoratedTxOutValue o - val - relayFee
-            if valChange `geq` minValueTxOut
-                then return $ utxoProducedPublicKeyTx (PaymentPubKeyHash changePKH) (stakingCredential changeAddr) valChange (Nothing :: Maybe ())
-                else pure $ failTx "encoinsTx" "Cannot add a user output." Nothing $> ()
+        -- res <- utxoSpentPublicKeyTx (\_ o -> _decoratedTxOutValue o `geq` (val + relayFee + minValueTxOut))
+        -- fromMaybe (failTx "encoinsTx" "Cannot add user inputs/outputs." Nothing $> ()) $ do
+        --     (_, o) <- res
+        --     changePKH <- toPubKeyHash changeAddr
+        --     let valChange = _decoratedTxOutValue o - val - relayFee
+        --     if valChange `geq` minValueTxOut
+        --         then return $ utxoProducedPublicKeyTx (PaymentPubKeyHash changePKH) (stakingCredential changeAddr) valChange (Nothing :: Maybe ())
+        --         else pure $ failTx "encoinsTx" "Cannot add a user output." Nothing $> ()
         utxoReferencedTx (\_ o -> _decoratedTxOutAddress o == addr && _decoratedTxOutValue o `geq` beacon) $> ()
     when (v < 0) $ fromMaybe (failTx "encoinsTx" "The address in the redeemer is not locked by a public key." Nothing $> ()) $ do
         pkh <- toPubKeyHash addr
