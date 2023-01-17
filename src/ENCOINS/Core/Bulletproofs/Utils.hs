@@ -12,8 +12,8 @@ module ENCOINS.Core.Bulletproofs.Utils where
 import           PlutusTx.Prelude
 
 import           ENCOINS.Core.BaseTypes
-import           Utils.Prelude           (drop, replicate)
-import           Utils.ByteString        (byteStringToInteger)
+import           PlutusTx.Extra.Prelude           (drop, replicate)
+import           PlutusTx.Extra.ByteString        (byteStringToInteger)
 
 ----------------------------------- Challenge ---------------------------------------
 

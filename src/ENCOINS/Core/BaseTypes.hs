@@ -23,6 +23,7 @@ import           Data.Bool                 (bool)
 import           Data.Functor              ((<$>))
 import           GHC.Generics              (Generic)
 import           PlutusTx                  (makeIsDataIndexed, unstableMakeIsData)
+import           PlutusTx.Extra.ByteString (toBytes, byteStringToInteger)
 import           PlutusTx.Prelude          hiding ((<$>))
 import qualified Prelude                   as Haskell
 import           System.Random             (Random (..), Uniform, UniformRange)
@@ -30,7 +31,6 @@ import           System.Random.Stateful    (Uniform(..), UniformRange (..))
 import           Test.QuickCheck           (Arbitrary(..))
 
 import           Crypto                    (T1, toZp, fromZp, addJ, mulJ, dblJ, fromXJ, CurvePoint (..), fromJ)
-import           Utils.ByteString          (toBytes, byteStringToInteger)
 
 ------------------------------------- Field Element --------------------------------------
 

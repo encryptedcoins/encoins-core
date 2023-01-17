@@ -67,7 +67,7 @@ encoinsBurnTx beaconSymb bs = do
     let f = \_ o -> _decoratedTxOutValue o `geq` encoin beaconSymb bs
     res1 <- utxoSpentPublicKeyTx' f
     res2 <- utxoSpentScriptTx' f (const . const $ ledgerValidator) (const . const $ ())
-    failTx (res1 >> res2) $> ()
+    failTx "encoinsBurnTx" "utxoSpentPublicKeyTx' or utxoSpentScriptTx' failed" (res1 >> res2) $> ()
 
 -- TODO: finish implementation
 encoinsTx :: EncoinsParams -> EncoinsRedeemer -> TransactionBuilder ()
@@ -103,7 +103,7 @@ stakingSpendTx' par val =
 
 -- Spend utxo greater than the given value from the Staking script. Fails if the utxo is not found.
 stakingSpendTx :: StakingParams -> Value -> TransactionBuilder (Maybe Value)
-stakingSpendTx par val = stakingSpendTx' par val >>= failTx
+stakingSpendTx par val = stakingSpendTx' par val >>= failTx "stakingSpendTx" "No matching utxos found"
 
 -- Combines several utxos into one.
 stakingCombineTx :: StakingParams -> Value -> Integer -> TransactionBuilder ()
