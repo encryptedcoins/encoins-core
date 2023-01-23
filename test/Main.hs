@@ -31,9 +31,8 @@ import           Text.Hex                         (decodeHex, encodeHex)
 
 import           ENCOINS.Bulletproofs             (Secret (..), Randomness (..), Input (..), Proof(..), bulletproof, parseBulletproofParams)
 import           ENCOINS.BaseTypes                (MintingPolarity(..), groupExp, groupGenerator, fromGroupElement)
-import           ENCOINS.Core.OffChain            (encoinsSymbol, stakingValidatorAddress)
-import           ENCOINS.Core.OnChain             (encoinsPolicy, bulletproofSetup)
-import           ENCOINS.Core.V1.OffChain         (verifierPKH, beaconCurrencySymbol)
+import           ENCOINS.Core.OnChain             (encoinsPolicy, bulletproofSetup, encoinsSymbol, beaconCurrencySymbol, stakingValidatorAddress)
+import           ENCOINS.Core.V1.OffChain         (verifierPKH)
 import           ENCOINS.Core.V1.OnChain          (hashRedeemer)
 import           ENCOINS.Crypto.Field             (Field(..))
 import           PlutusTx.Extra.ByteString        (toBytes)
@@ -51,7 +50,6 @@ mkSchema (Map entries) = "{\"map\": [" ++ lst ++ "]}"
         lst = intercalate ", " (zipWith mkEntry ks vs)
 mkSchema (Constr n dats) = "{ \"constructor\": " ++ show n ++ ", \"fields\": [" ++ lst ++ "]}"
     where lst = intercalate ", " (map mkSchema dats)
-
 
 main :: IO ()
 main = do
