@@ -16,7 +16,7 @@ import           Data.Functor                                   (($>), (<$>))
 import           Data.Maybe                                     (fromJust)
 import           Ledger                                         (DecoratedTxOut(..), _decoratedTxOutAddress)
 import           Ledger.Ada                                     (lovelaceValueOf)
-import           Ledger.Address                                 (PaymentPubKeyHash (..), toPubKeyHash, stakingCredential)
+import           Ledger.Address                                 (toPubKeyHash, stakingCredential)
 import           Ledger.Tokens                                  (token)
 import           Ledger.Value                                   (AssetClass (..), geq, isAdaOnlyValue, gt, lt)
 import           Plutus.V2.Ledger.Api
@@ -70,7 +70,7 @@ encoinsTx par@(beaconSymb, _) (_, red@(addr, (v, inputs), _, _))  = do
         utxoReferencedTx (\_ o -> _decoratedTxOutAddress o == addr && _decoratedTxOutValue o `geq` beacon) $> ()
     when (v < 0) $ fromMaybe (failTx "encoinsTx" "The address in the redeemer is not locked by a public key." Nothing $> ()) $ do
         pkh <- toPubKeyHash addr
-        return $ utxoProducedPublicKeyTx (PaymentPubKeyHash pkh) (stakingCredential addr) (negate val) (Nothing :: Maybe ())
+        return $ utxoProducedPublicKeyTx pkh (stakingCredential addr) (negate val) (Nothing :: Maybe ())
 
 ------------------------------------- ADA Staking Validator --------------------------------------
 
