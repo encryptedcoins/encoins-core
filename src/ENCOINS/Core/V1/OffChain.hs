@@ -11,24 +11,25 @@
 
 module ENCOINS.Core.V1.OffChain where
 
-import           Control.Monad.State                            (when)
-import           Data.Functor                                   (($>), (<$>))
-import           Data.Maybe                                     (fromJust)
-import           Ledger                                         (DecoratedTxOut(..), _decoratedTxOutAddress)
-import           Ledger.Ada                                     (lovelaceValueOf)
-import           Ledger.Address                                 (toPubKeyHash, stakingCredential)
-import           Ledger.Tokens                                  (token)
-import           Ledger.Value                                   (AssetClass (..), geq, isAdaOnlyValue, gt, lt)
+import           Control.Monad.State                   (when)
+import           Data.Functor                          (($>), (<$>))
+import           Data.Maybe                            (fromJust)
+import           Ledger                                (DecoratedTxOut(..), _decoratedTxOutAddress)
+import           Ledger.Ada                            (lovelaceValueOf)
+import           Ledger.Address                        (toPubKeyHash, stakingCredential)
+import           Ledger.Tokens                         (token)
+import           Ledger.Value                          (AssetClass (..), geq, isAdaOnlyValue, gt, lt)
 import           Plutus.V2.Ledger.Api
-import           PlutusTx.Prelude                               hiding ((<$>))
-import           Text.Hex                                       (decodeHex)
+import           PlutusTx.Prelude                      hiding ((<$>))
+import           Text.Hex                              (decodeHex)
 
 import           Constraints.OffChain
-import           ENCOINS.BaseTypes                              (MintingPolarity (..))
-import           ENCOINS.Bulletproofs                           (polarityToInteger)
+import           ENCOINS.BaseTypes                     (MintingPolarity (..))
+import           ENCOINS.Bulletproofs                  (polarityToInteger)
 import           ENCOINS.Core.V1.OnChain
-import           Scripts.OneShotCurrency                        (oneShotCurrencyMintTx)
-import           Types.Tx                                       (TransactionBuilder)
+import           Scripts.CommonValidators              (alwaysFalseValidatorAddress)
+import           Scripts.OneShotCurrency               (oneShotCurrencyMintTx)
+import           Types.Tx                              (TransactionBuilder)
 
 verifierPKH ::BuiltinByteString
 verifierPKH = toBuiltin $ fromJust $ decodeHex "FA729A50432E19737EEEEA0BFD8E673D41973E7ACE17A2EEDB2119F6F989108A"
@@ -46,13 +47,18 @@ beaconSendTx ref = utxoProducedScriptTx vh Nothing v ()
   where vh = stakingValidatorHash $ encoinsSymbol (beaconCurrencySymbol ref, verifierPKH)
         v  = beaconToken ref + lovelaceValueOf 2_000_000
 
+beaconTx :: TxOutRef -> TransactionBuilder ()
+beaconTx ref = do
+    beaconMintTx ref
+    beaconSendTx ref
+
 ----------------------------------- ENCOINS Minting Policy ---------------------------------------
 
 type EncoinsRedeemerWithData = (Address, EncoinsRedeemer)
 
 encoinsBurnTx :: EncoinsParams -> BuiltinByteString -> TransactionBuilder ()
-encoinsBurnTx beaconSymb bs = do
-    let f = \_ o -> _decoratedTxOutValue o `geq` encoin beaconSymb bs
+encoinsBurnTx par bs = do
+    let f = \_ o -> _decoratedTxOutValue o `geq` encoin par bs
     res1 <- utxoSpentPublicKeyTx' f
     res2 <- utxoSpentScriptTx' f (const . const $ ledgerValidatorV) (const . const $ ())
     failTx "encoinsBurnTx" "Cannot find the required coin." (res1 >> res2) $> ()
@@ -71,6 +77,9 @@ encoinsTx par@(beaconSymb, _) (_, red@(addr, (v, inputs), _, _))  = do
     when (v < 0) $ fromMaybe (failTx "encoinsTx" "The address in the redeemer is not locked by a public key." Nothing $> ()) $ do
         pkh <- toPubKeyHash addr
         return $ utxoProducedPublicKeyTx pkh (stakingCredential addr) (negate val) (Nothing :: Maybe ())
+
+postEncoinsPolicyTx :: EncoinsParams -> TransactionBuilder ()
+postEncoinsPolicyTx par = postMintingPolicyTx alwaysFalseValidatorAddress (encoinsPolicyV par) (Nothing :: Maybe ()) zero
 
 ------------------------------------- ADA Staking Validator --------------------------------------
 
@@ -105,6 +114,9 @@ stakingModifyTx par val
             let valSpent  = fromJust res
                 valChange = valSpent + val
             in when (valChange `gt` zero) $ utxoProducedScriptTx (stakingValidatorHash par) Nothing valChange ()
+
+postStakingValidatorTx :: StakingParams -> TransactionBuilder ()
+postStakingValidatorTx par = postValidatorTx alwaysFalseValidatorAddress (stakingValidatorV par) (Nothing :: Maybe ()) zero
 
 ------------------------------------- ENCOINS Ledger Validator -----------------------------------------
 
