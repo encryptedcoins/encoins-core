@@ -78,8 +78,8 @@ encoinsTx par@(beaconSymb, _) (_, red@(addr, (v, inputs), _, _))  = do
         pkh <- toPubKeyHash addr
         return $ utxoProducedPublicKeyTx pkh (stakingCredential addr) (negate val) (Nothing :: Maybe ())
 
-postEncoinsPolicyTx :: EncoinsParams -> TransactionBuilder ()
-postEncoinsPolicyTx par = postMintingPolicyTx alwaysFalseValidatorAddress (encoinsPolicyV par) (Nothing :: Maybe ()) zero
+postEncoinsPolicyTx :: EncoinsParams -> Integer -> TransactionBuilder ()
+postEncoinsPolicyTx par salt = postMintingPolicyTx (alwaysFalseValidatorAddress salt) (encoinsPolicyV par) (Just ()) zero
 
 ------------------------------------- ADA Staking Validator --------------------------------------
 
@@ -115,8 +115,8 @@ stakingModifyTx par val
                 valChange = valSpent + val
             in when (valChange `gt` zero) $ utxoProducedScriptTx (stakingValidatorHash par) Nothing valChange ()
 
-postStakingValidatorTx :: StakingParams -> TransactionBuilder ()
-postStakingValidatorTx par = postValidatorTx alwaysFalseValidatorAddress (stakingValidatorV par) (Nothing :: Maybe ()) zero
+postStakingValidatorTx :: StakingParams -> Integer -> TransactionBuilder ()
+postStakingValidatorTx par salt = postValidatorTx (alwaysFalseValidatorAddress salt) (stakingValidatorV par) (Just ()) zero
 
 ------------------------------------- ENCOINS Ledger Validator -----------------------------------------
 
