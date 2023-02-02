@@ -87,7 +87,7 @@ hashRedeemer (addr, (v, inputs), proof, _) = sha2_256 $ toBytes addr `appendByte
 
 {-# INLINABLE encoinName #-}
 encoinName :: BuiltinByteString -> TokenName
-encoinName = TokenName . sha2_256
+encoinName = TokenName
 
 -- TODO: remove on-chain sorting (requires sorting inputs and proof components)
 encoinsPolicyCheck :: EncoinsParams -> EncoinsRedeemer -> ScriptContext -> Bool
