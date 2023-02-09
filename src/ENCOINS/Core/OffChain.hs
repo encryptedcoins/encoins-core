@@ -14,7 +14,7 @@ import           PlutusTx.Prelude                               hiding ((<$>))
 
 import           ENCOINS.Core.V1.OffChain                       as V1
 import           ENCOINS.Core.V1.OnChain                        as V1
-import           Types.Tx                                       (TransactionBuilder)
+import           PlutusAppsExtra.Types.Tx                       (TransactionBuilder)
 
 ------------------------------------- Beacon Minting Policy --------------------------------------
 

@@ -11,25 +11,25 @@
 
 module ENCOINS.Core.V1.OffChain where
 
-import           Control.Monad.State                   (when)
-import           Data.Functor                          (($>), (<$>))
-import           Data.Maybe                            (fromJust)
-import           Ledger                                (DecoratedTxOut(..), _decoratedTxOutAddress)
-import           Ledger.Ada                            (lovelaceValueOf)
-import           Ledger.Address                        (toPubKeyHash, stakingCredential)
-import           Ledger.Tokens                         (token)
-import           Ledger.Value                          (AssetClass (..), geq, isAdaOnlyValue, gt, lt)
+import           Control.Monad.State                        (when)
+import           Data.Functor                               (($>), (<$>))
+import           Data.Maybe                                 (fromJust)
+import           Ledger                                     (DecoratedTxOut(..), _decoratedTxOutAddress)
+import           Ledger.Ada                                 (lovelaceValueOf)
+import           Ledger.Address                             (toPubKeyHash, stakingCredential)
+import           Ledger.Tokens                              (token)
+import           Ledger.Value                               (AssetClass (..), geq, isAdaOnlyValue, gt, lt)
 import           Plutus.V2.Ledger.Api
-import           PlutusTx.Prelude                      hiding ((<$>))
-import           Text.Hex                              (decodeHex)
+import           PlutusTx.Prelude                           hiding ((<$>))
+import           Text.Hex                                   (decodeHex)
 
-import           Constraints.OffChain
-import           ENCOINS.BaseTypes                     (MintingPolarity (..))
-import           ENCOINS.Bulletproofs                  (polarityToInteger)
+import           ENCOINS.BaseTypes                          (MintingPolarity (..))
+import           ENCOINS.Bulletproofs                       (polarityToInteger)
 import           ENCOINS.Core.V1.OnChain
-import           Scripts.CommonValidators              (alwaysFalseValidatorAddress)
-import           Scripts.OneShotCurrency               (oneShotCurrencyMintTx)
-import           Types.Tx                              (TransactionBuilder)
+import           PlutusAppsExtra.Constraints.OffChain
+import           PlutusAppsExtra.Scripts.CommonValidators   (alwaysFalseValidatorAddress)
+import           PlutusAppsExtra.Scripts.OneShotCurrency    (oneShotCurrencyMintTx)
+import           PlutusAppsExtra.Types.Tx                   (TransactionBuilder)
 
 verifierPKH ::BuiltinByteString
 verifierPKH = toBuiltin $ fromJust $ decodeHex "FA729A50432E19737EEEEA0BFD8E673D41973E7ACE17A2EEDB2119F6F989108A"

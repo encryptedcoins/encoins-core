@@ -12,14 +12,14 @@
 
 module ENCOINS.Core.OnChain where
 
-import           Ledger.Scripts                       (Versioned)
-import           Ledger.Value                         (AssetClass)
+import           Ledger.Scripts                            (Versioned)
+import           Ledger.Value                              (AssetClass)
 import           Plutus.V2.Ledger.Api
 import           PlutusTx.Prelude
 
-import           ENCOINS.Bulletproofs                 (BulletproofSetup)
-import           ENCOINS.Core.V1.OnChain              as V1
-import           Scripts.OneShotCurrency              (OneShotCurrencyParams)
+import           ENCOINS.Bulletproofs                      (BulletproofSetup)
+import           ENCOINS.Core.V1.OnChain                   as V1
+import           PlutusAppsExtra.Scripts.OneShotCurrency   (OneShotCurrencyParams)
 
 ------------------------------------- Beacon Minting Policy --------------------------------------
 

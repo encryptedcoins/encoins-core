@@ -23,7 +23,7 @@ import           Ledger.Value                     (CurrencySymbol(..))
 import           PlutusTx                         (Data (..), ToData(..), builtinDataToData)
 import           PlutusTx.Builtins                (serialiseData)
 import           PlutusTx.Prelude
-import           Prelude                          (IO, print, unzip, String, Show (..), writeFile)
+import           Prelude                          (IO, String, Show (..), writeFile, print, unzip)
 import qualified Prelude                          as Haskell
 import           System.Random                    (randomIO)
 import           Test.QuickCheck                  (quickCheck)
@@ -35,8 +35,8 @@ import           ENCOINS.Core.OnChain             (encoinsPolicy, bulletproofSet
 import           ENCOINS.Core.V1.OffChain         (verifierPKH)
 import           ENCOINS.Core.V1.OnChain          (hashRedeemer)
 import           ENCOINS.Crypto.Field             (Field(..))
+import           PlutusAppsExtra.Utils.Address    (bech32ToAddress)
 import           PlutusTx.Extra.ByteString        (toBytes)
-import           Utils.Address                    (bech32ToAddress)
 
 mkSchema :: Data -> String
 mkSchema (I i) = "{\"int\": " ++ show i ++ "}"
