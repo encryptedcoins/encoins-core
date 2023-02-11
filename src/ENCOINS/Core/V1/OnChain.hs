@@ -30,7 +30,7 @@ import           Plutus.Script.Utils.V2.Scripts       (validatorHash, scriptCurr
 import           Plutus.V2.Ledger.Api
 import           Plutus.V2.Ledger.Contexts            (findOwnInput)
 import           PlutusTx                             (compile, applyCode, liftCode)
-import           PlutusTx.AssocMap                    (lookup)
+import           PlutusTx.AssocMap                    (lookup, keys)
 import           PlutusTx.Prelude
 
 import           ENCOINS.Bulletproofs                      (BulletproofSetup(..), Proof, bulletproofM, bulletproofN, polarityToInteger)
@@ -123,6 +123,9 @@ encoinsAssetClass par a = AssetClass (encoinsSymbol par, encoinName a)
 
 encoin :: EncoinsParams -> BuiltinByteString -> Value
 encoin par = token . encoinsAssetClass par
+
+encoinsInValue :: EncoinsParams -> Value -> [BuiltinByteString]
+encoinsInValue par = map unTokenName . maybe [] keys . lookup (encoinsSymbol par) . getValue 
 
 ------------------------------------- ADA Staking Validator --------------------------------------
 

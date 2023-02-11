@@ -12,9 +12,9 @@
 module ENCOINS.Core.V1.OffChain where
 
 import           Control.Monad.State                        (when)
+import           Data.Bool                                  (bool)
 import           Data.Functor                               (($>), (<$>))
 import           Data.Maybe                                 (fromJust)
-import           Data.Text                                  (pack)
 import           Ledger                                     (DecoratedTxOut(..), _decoratedTxOutAddress)
 import           Ledger.Ada                                 (lovelaceValueOf)
 import           Ledger.Address                             (toPubKeyHash, stakingCredential)
@@ -22,8 +22,8 @@ import           Ledger.Tokens                              (token)
 import           Ledger.Value                               (AssetClass (..), geq, isAdaOnlyValue, gt, lt)
 import           Plutus.V2.Ledger.Api
 import           PlutusTx.Prelude                           hiding ((<$>), (<>))
-import           Prelude                                    ((<>), show)
-import           Text.Hex                                   (decodeHex)
+import           Prelude                                    ((<>))
+import           Text.Hex                                   (decodeHex, encodeHex)
 
 import           ENCOINS.BaseTypes                          (MintingPolarity (..))
 import           ENCOINS.Bulletproofs                       (polarityToInteger)
@@ -58,12 +58,18 @@ beaconTx ref = do
 
 type EncoinsRedeemerWithData = (Address, EncoinsRedeemer)
 
-encoinsBurnTx :: EncoinsParams -> BuiltinByteString -> TransactionBuilder ()
-encoinsBurnTx par bs = do
+encoinsBurnTx :: EncoinsParams -> [BuiltinByteString] -> TransactionBuilder ()
+encoinsBurnTx _   []       = return ()
+encoinsBurnTx par (bs:bss) = do
     let f = \_ o -> _decoratedTxOutValue o `geq` encoin par bs
     res1 <- utxoSpentPublicKeyTx' f
     res2 <- utxoSpentScriptTx' f (const . const $ ledgerValidatorV) (const . const $ ())
-    failTx "encoinsBurnTx" ("Cannot find the required coin: " <> pack (show bs)) (res1 >> res2) $> ()
+    -- At most one of the results is a Just.
+    case bool res2 res1 (isJust res1) of
+      Nothing -> failTx "encoinsBurnTx" ("Cannot find the required coin: " <> encodeHex (fromBuiltin bs)) Nothing $> ()
+      Just (_, o) -> -- Filter out all encoins in the output and continue
+        let bss' = filter (`notElem` encoinsInValue par (_decoratedTxOutValue o)) bss
+        in encoinsBurnTx par bss'
 
 encoinsTx :: EncoinsParams -> EncoinsRedeemerWithData -> TransactionBuilder ()
 encoinsTx par@(beaconSymb, _) (_, red@(addr, (v, inputs), _, _))  = do
@@ -71,7 +77,7 @@ encoinsTx par@(beaconSymb, _) (_, red@(addr, (v, inputs), _, _))  = do
         coinsToBurn = filter (\(_, p) -> p == Burn) inputs
         val         = lovelaceValueOf (v * 1_000_000)
         valEncoins  = sum $ map (\(bs, p) -> scale (polarityToInteger p) (encoin par bs)) inputs
-    mapM_ (encoinsBurnTx par . fst) coinsToBurn
+    encoinsBurnTx par $ map fst coinsToBurn
     tokensMintedTx (encoinsPolicyV par) red valEncoins
     stakingModifyTx (encoinsSymbol par) val
     when (v > 0) $

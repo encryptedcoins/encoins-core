@@ -81,6 +81,9 @@ encoinsAssetClass = V1.encoinsAssetClass
 encoin :: V1.EncoinsParams -> BuiltinByteString -> Value
 encoin = V1.encoin
 
+encoinsInValue :: V1.EncoinsParams -> Value -> [BuiltinByteString]
+encoinsInValue = V1.encoinsInValue
+
 ------------------------------------- ADA Staking Validator --------------------------------------
 
 -- ENCOINS currency symbol
