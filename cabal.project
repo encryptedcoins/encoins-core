@@ -34,7 +34,7 @@ source-repository-package
 source-repository-package
   type: git
   location: https://github.com/encryptedcoins/encoins-bulletproofs.git
-  tag: a5c582ec3816ffb76acb2929b51df24bc0bbe1a0
+  tag: f75e5776ba4079e342907e3189cd33e3c9cf35b6
 
 source-repository-package
   type: git
