@@ -14,13 +14,15 @@ module ENCOINS.Core.V1.OffChain where
 import           Control.Monad.State                        (when)
 import           Data.Functor                               (($>), (<$>))
 import           Data.Maybe                                 (fromJust)
+import           Data.Text                                  (pack)
 import           Ledger                                     (DecoratedTxOut(..), _decoratedTxOutAddress)
 import           Ledger.Ada                                 (lovelaceValueOf)
 import           Ledger.Address                             (toPubKeyHash, stakingCredential)
 import           Ledger.Tokens                              (token)
 import           Ledger.Value                               (AssetClass (..), geq, isAdaOnlyValue, gt, lt)
 import           Plutus.V2.Ledger.Api
-import           PlutusTx.Prelude                           hiding ((<$>))
+import           PlutusTx.Prelude                           hiding ((<$>), (<>))
+import           Prelude                                    ((<>), show)
 import           Text.Hex                                   (decodeHex)
 
 import           ENCOINS.BaseTypes                          (MintingPolarity (..))
@@ -61,7 +63,7 @@ encoinsBurnTx par bs = do
     let f = \_ o -> _decoratedTxOutValue o `geq` encoin par bs
     res1 <- utxoSpentPublicKeyTx' f
     res2 <- utxoSpentScriptTx' f (const . const $ ledgerValidatorV) (const . const $ ())
-    failTx "encoinsBurnTx" "Cannot find the required coin." (res1 >> res2) $> ()
+    failTx "encoinsBurnTx" ("Cannot find the required coin: " <> pack (show bs)) (res1 >> res2) $> ()
 
 encoinsTx :: EncoinsParams -> EncoinsRedeemerWithData -> TransactionBuilder ()
 encoinsTx par@(beaconSymb, _) (_, red@(addr, (v, inputs), _, _))  = do

@@ -58,6 +58,9 @@ main = do
         encoinsSymb = encoinsSymbol encoinsPar
         stakingAddr = serialiseAddress $ fromRight (error ()) $ toCardanoAddressInEra (Testnet $ NetworkMagic 2) $  stakingValidatorAddress encoinsSymb
 
+    print $ encoinsSymb
+    print $ stakingValidatorAddress encoinsSymb
+
     -- Writing current bulletproof setup to JSON
     writeFileJSON "testnet/setup.json" bulletproofSetup
     -- Writing current minting script to JSON
