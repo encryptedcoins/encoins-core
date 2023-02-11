@@ -14,15 +14,15 @@ module ENCOINS.Core.V1.OffChain where
 import           Control.Monad.State                        (when)
 import           Data.Bool                                  (bool)
 import           Data.Functor                               (($>), (<$>))
-import           Data.Maybe                                 (fromJust)
+import           Data.Maybe                                 (fromJust, catMaybes)
 import           Ledger                                     (DecoratedTxOut(..), _decoratedTxOutAddress)
 import           Ledger.Ada                                 (lovelaceValueOf)
 import           Ledger.Address                             (toPubKeyHash, stakingCredential)
 import           Ledger.Tokens                              (token)
 import           Ledger.Value                               (AssetClass (..), geq, isAdaOnlyValue, gt, lt)
 import           Plutus.V2.Ledger.Api
-import           PlutusTx.Prelude                           hiding ((<$>), (<>))
-import           Prelude                                    ((<>))
+import           PlutusTx.Prelude                           hiding ((<$>), (<>), mapM)
+import           Prelude                                    ((<>), mapM)
 import           Text.Hex                                   (decodeHex, encodeHex)
 
 import           ENCOINS.BaseTypes                          (MintingPolarity (..))
@@ -79,7 +79,7 @@ encoinsTx par@(beaconSymb, _) (_, red@(addr, (v, inputs), _, _))  = do
         valEncoins  = sum $ map (\(bs, p) -> scale (polarityToInteger p) (encoin par bs)) inputs
     encoinsBurnTx par $ map fst coinsToBurn
     tokensMintedTx (encoinsPolicyV par) red valEncoins
-    stakingModifyTx (encoinsSymbol par) val
+    stakingModifyTx (encoinsSymbol par) val 1
     when (v > 0) $
         utxoReferencedTx (\_ o -> _decoratedTxOutAddress o == addr && _decoratedTxOutValue o `geq` beacon) $> ()
     when (v < 0) $ fromMaybe (failTx "encoinsTx" "The address in the redeemer is not locked by a public key." Nothing $> ()) $ do
@@ -113,13 +113,14 @@ stakingCombineTx par val n = do
     stakingCombineTx par val' (n-1)
 
 -- Modify the value locked in staking by the given value
-stakingModifyTx :: StakingParams -> Value -> TransactionBuilder ()
-stakingModifyTx par val
+stakingModifyTx :: StakingParams -> Value -> Integer -> TransactionBuilder ()
+stakingModifyTx par val n
     | val `gt` zero = utxoProducedScriptTx (stakingValidatorHash par) Nothing val ()
     | otherwise      = when (val `lt` zero) $ do
-        res <- stakingSpendTx par val
+        res  <- stakingSpendTx par val
+        res' <- mapM (const $ stakingSpendTx' par zero) [1..n] -- Spend `n` additional utxos
         when (isJust res) $
-            let valSpent  = fromJust res
+            let valSpent  = fromJust res + sum (catMaybes res')
                 valChange = valSpent + val
             in when (valChange `gt` zero) $ utxoProducedScriptTx (stakingValidatorHash par) Nothing valChange ()
 

@@ -47,7 +47,7 @@ stakingCombineTx :: V1.StakingParams -> Value -> Integer -> TransactionBuilder (
 stakingCombineTx = V1.stakingCombineTx
 
 -- Modify the value locked in staking by the given value
-stakingModifyTx :: V1.StakingParams -> Value -> TransactionBuilder ()
+stakingModifyTx :: V1.StakingParams -> Value -> Integer -> TransactionBuilder ()
 stakingModifyTx = V1.stakingModifyTx
 
 ------------------------------------- ENCOINS Ledger Validator -----------------------------------------
