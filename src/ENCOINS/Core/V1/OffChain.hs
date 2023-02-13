@@ -11,10 +11,11 @@
 
 module ENCOINS.Core.V1.OffChain where
 
-import           Control.Monad.State                        (when)
+import           Control.Monad.State                        (when, gets)
 import           Data.Bool                                  (bool)
 import           Data.Functor                               (($>), (<$>))
 import           Data.Maybe                                 (fromJust, catMaybes)
+import           Data.Text                                  (pack)
 import           Ledger                                     (DecoratedTxOut(..), _decoratedTxOutAddress)
 import           Ledger.Ada                                 (lovelaceValueOf)
 import           Ledger.Address                             (toPubKeyHash, stakingCredential)
@@ -22,7 +23,7 @@ import           Ledger.Tokens                              (token)
 import           Ledger.Value                               (AssetClass (..), geq, isAdaOnlyValue, gt, lt)
 import           Plutus.V2.Ledger.Api
 import           PlutusTx.Prelude                           hiding ((<$>), (<>), mapM)
-import           Prelude                                    ((<>), mapM)
+import           Prelude                                    ((<>), mapM, show)
 import           Text.Hex                                   (decodeHex, encodeHex)
 
 import           ENCOINS.BaseTypes                          (MintingPolarity (..))
@@ -31,7 +32,7 @@ import           ENCOINS.Core.V1.OnChain
 import           PlutusAppsExtra.Constraints.OffChain
 import           PlutusAppsExtra.Scripts.CommonValidators   (alwaysFalseValidatorAddress)
 import           PlutusAppsExtra.Scripts.OneShotCurrency    (oneShotCurrencyMintTx)
-import           PlutusAppsExtra.Types.Tx                   (TransactionBuilder)
+import           PlutusAppsExtra.Types.Tx                   (TransactionBuilder, TxConstructor (..))
 
 verifierPKH ::BuiltinByteString
 verifierPKH = toBuiltin $ fromJust $ decodeHex "FA729A50432E19737EEEEA0BFD8E673D41973E7ACE17A2EEDB2119F6F989108A"
@@ -102,7 +103,13 @@ stakingSpendTx' par val =
 
 -- Spend utxo greater than the given value from the Staking script. Fails if the utxo is not found.
 stakingSpendTx :: StakingParams -> Value -> TransactionBuilder (Maybe Value)
-stakingSpendTx par val = stakingSpendTx' par val >>= failTx "stakingSpendTx" "Cannot find a suitable utxo to spend."
+stakingSpendTx par val = do
+    res <- stakingSpendTx' par val
+    if isNothing res
+        then do
+            utxos <- gets txConstructorLookups
+            failTx "stakingSpendTx" ("Cannot find a suitable utxo to spend. UTXOs: " <> pack (show utxos)) res
+        else return res
 
 -- Combines several utxos into one.
 stakingCombineTx :: StakingParams -> Value -> Integer -> TransactionBuilder ()
@@ -117,7 +124,7 @@ stakingModifyTx :: StakingParams -> Value -> Integer -> TransactionBuilder ()
 stakingModifyTx par val n
     | val `gt` zero = utxoProducedScriptTx (stakingValidatorHash par) Nothing val ()
     | otherwise      = when (val `lt` zero) $ do
-        res  <- stakingSpendTx par val
+        res  <- stakingSpendTx par (negate val)
         res' <- mapM (const $ stakingSpendTx' par zero) [1..n] -- Spend `n` additional utxos
         when (isJust res) $
             let valSpent  = fromJust res + sum (catMaybes res')
