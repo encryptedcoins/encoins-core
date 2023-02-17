@@ -34,8 +34,10 @@ import           PlutusAppsExtra.Scripts.CommonValidators   (alwaysFalseValidato
 import           PlutusAppsExtra.Scripts.OneShotCurrency    (oneShotCurrencyMintTx)
 import           PlutusAppsExtra.Types.Tx                   (TransactionBuilder, TxConstructor (..))
 
-relayFee :: Value
-relayFee = lovelaceValueOf 2_000_000
+protocolFee :: Integer -> Value
+protocolFee n
+    | n < 0 = lovelaceValueOf $ max 1_500_000 $ (negate n * 1_000_000) `divide` 200
+    | otherwise = zero
 
 ------------------------------------- Beacon Minting Policy --------------------------------------
 
@@ -69,8 +71,8 @@ encoinsBurnTx par (bs:bss) = do
         let bss' = filter (`notElem` encoinsInValue par (_decoratedTxOutValue o)) bss
         in encoinsBurnTx par bss'
 
-encoinsTx :: EncoinsParams -> EncoinsRedeemerWithData -> TransactionBuilder ()
-encoinsTx par@(beaconSymb, _) (_, red@(addr, (v, inputs), _, _))  = do
+encoinsTx :: (Address, Address) -> EncoinsParams -> EncoinsRedeemerWithData -> TransactionBuilder ()
+encoinsTx (addrRelay, addrTreasury) par@(beaconSymb, _) (_, red@(addr, (v, inputs), _, _))  = do
     let beacon      = token (AssetClass (beaconSymb, beaconTokenName))
         coinsToBurn = filter (\(_, p) -> p == Burn) inputs
         val         = lovelaceValueOf (v * 1_000_000)
@@ -82,7 +84,10 @@ encoinsTx par@(beaconSymb, _) (_, red@(addr, (v, inputs), _, _))  = do
         utxoReferencedTx (\_ o -> _decoratedTxOutAddress o == addr && _decoratedTxOutValue o `geq` beacon) $> ()
     when (v < 0) $ fromMaybe (failTx "encoinsTx" "The address in the redeemer is not locked by a public key." Nothing $> ()) $ do
         pkh <- toPubKeyHash addr
-        return $ utxoProducedPublicKeyTx pkh (stakingCredential addr) (negate val) (Nothing :: Maybe ())
+        return $ do
+            utxoProducedTx addrRelay    (protocolFee v) (Just ())
+            utxoProducedTx addrTreasury (protocolFee v) (Just ())
+            utxoProducedPublicKeyTx pkh (stakingCredential addr) (negate val) (Nothing :: Maybe ())
 
 postEncoinsPolicyTx :: EncoinsParams -> Integer -> TransactionBuilder ()
 postEncoinsPolicyTx par salt = postMintingPolicyTx (alwaysFalseValidatorAddress salt) (encoinsPolicyV par) (Just ()) zero

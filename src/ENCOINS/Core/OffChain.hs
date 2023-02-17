@@ -29,7 +29,7 @@ beaconSendTx = V1.beaconSendTx
 encoinsBurnTx :: V1.EncoinsParams -> [BuiltinByteString] -> TransactionBuilder ()
 encoinsBurnTx = V1.encoinsBurnTx
 
-encoinsTx :: V1.EncoinsParams -> V1.EncoinsRedeemerWithData -> TransactionBuilder ()
+encoinsTx :: (Address, Address) -> V1.EncoinsParams -> V1.EncoinsRedeemerWithData -> TransactionBuilder ()
 encoinsTx = V1.encoinsTx
 
 ------------------------------------- ADA Staking Validator --------------------------------------
