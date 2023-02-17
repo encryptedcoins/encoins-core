@@ -36,7 +36,7 @@ import           PlutusTx.Prelude
 import           ENCOINS.Bulletproofs                      (Proof, polarityToInteger)
 import           ENCOINS.BaseTypes                         (MintingPolarity)
 import           ENCOINS.Orphans                           ()
-import           PlutusAppsExtra.Constraints.OnChain       (tokensMinted, filterUtxoSpent, filterUtxoProduced, utxoReferenced)
+import           PlutusAppsExtra.Constraints.OnChain       (tokensMinted, filterUtxoSpent, filterUtxoProduced, utxoReferenced, utxoProduced)
 import           PlutusAppsExtra.Scripts.OneShotCurrency   (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
 import           PlutusAppsExtra.Utils.Orphans             ()
 import           PlutusTx.Extra.ByteString                 (ToBuiltinByteString(..))
@@ -97,7 +97,7 @@ encoinsPolicyCheck (beaconSymb, verifierPKH) red@(addr, (v, inputs), _, sig)
 
       cond0 = tokensMinted ctx $ fromList $ sort $ map (\(bs, p) -> (encoinName bs, polarityToInteger p)) inputs
       cond1 = verifyEd25519Signature verifierPKH (hashRedeemer red) sig
-      cond2 = sum (map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == addr)) `geq` val
+      cond2 = utxoProduced info (\o -> txOutAddress o == addr && txOutValue o `geq` val)
       cond3 = utxoReferenced info (\o -> txOutAddress o == addr && txOutValue o `geq` beacon) || (v <= 0)
 
 encoinsPolicy :: EncoinsParams -> MintingPolicy
