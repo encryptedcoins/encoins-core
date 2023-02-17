@@ -24,7 +24,7 @@ import           Ledger.Value                               (AssetClass (..), ge
 import           Plutus.V2.Ledger.Api
 import           PlutusTx.Prelude                           hiding ((<$>), (<>), mapM)
 import           Prelude                                    ((<>), mapM, show)
-import           Text.Hex                                   (decodeHex, encodeHex)
+import           Text.Hex                                   (encodeHex)
 
 import           ENCOINS.BaseTypes                          (MintingPolarity (..))
 import           ENCOINS.Bulletproofs                       (polarityToInteger)
@@ -34,9 +34,6 @@ import           PlutusAppsExtra.Scripts.CommonValidators   (alwaysFalseValidato
 import           PlutusAppsExtra.Scripts.OneShotCurrency    (oneShotCurrencyMintTx)
 import           PlutusAppsExtra.Types.Tx                   (TransactionBuilder, TxConstructor (..))
 
-verifierPKH ::BuiltinByteString
-verifierPKH = toBuiltin $ fromJust $ decodeHex "FA729A50432E19737EEEEA0BFD8E673D41973E7ACE17A2EEDB2119F6F989108A"
-
 relayFee :: Value
 relayFee = lovelaceValueOf 2_000_000
 
@@ -45,15 +42,15 @@ relayFee = lovelaceValueOf 2_000_000
 beaconMintTx :: TxOutRef -> TransactionBuilder ()
 beaconMintTx ref = oneShotCurrencyMintTx (beaconParams ref) $> ()
 
-beaconSendTx :: TxOutRef -> TransactionBuilder ()
-beaconSendTx ref = utxoProducedScriptTx vh Nothing v ()
+beaconSendTx :: TxOutRef -> BuiltinByteString -> TransactionBuilder ()
+beaconSendTx ref verifierPKH = utxoProducedScriptTx vh Nothing v ()
   where vh = stakingValidatorHash $ encoinsSymbol (beaconCurrencySymbol ref, verifierPKH)
         v  = beaconToken ref + lovelaceValueOf 2_000_000
 
-beaconTx :: TxOutRef -> TransactionBuilder ()
-beaconTx ref = do
+beaconTx :: TxOutRef -> BuiltinByteString -> TransactionBuilder ()
+beaconTx ref verifierPKH = do
     beaconMintTx ref
-    beaconSendTx ref
+    beaconSendTx ref verifierPKH
 
 ----------------------------------- ENCOINS Minting Policy ---------------------------------------
 
@@ -122,8 +119,14 @@ stakingCombineTx par val n = do
 -- Modify the value locked in staking by the given value
 stakingModifyTx :: StakingParams -> Value -> Integer -> TransactionBuilder ()
 stakingModifyTx par val n
+    -- If we modify the value by 1 ADA, we must spend at least one utxo.
+    | val == lovelaceValueOf 1_000_000 = do
+        res  <- stakingSpendTx par zero
+        when (isJust res) $
+            utxoProducedScriptTx (stakingValidatorHash par) Nothing (fromJust res + val) ()
     | val `gt` zero = utxoProducedScriptTx (stakingValidatorHash par) Nothing val ()
     | otherwise      = when (val `lt` zero) $ do
+        -- TODO: Try spending several utxo to get the required value
         res  <- stakingSpendTx par (negate val)
         res' <- mapM (const $ stakingSpendTx' par zero) [1..n] -- Spend `n` additional utxos
         when (isJust res) $

@@ -17,7 +17,6 @@ import           Ledger.Value                              (AssetClass)
 import           Plutus.V2.Ledger.Api
 import           PlutusTx.Prelude
 
-import           ENCOINS.Bulletproofs                      (BulletproofSetup)
 import           ENCOINS.Core.V1.OnChain                   as V1
 import           PlutusAppsExtra.Scripts.OneShotCurrency   (OneShotCurrencyParams)
 
@@ -47,9 +46,6 @@ beaconToken :: TxOutRef -> Value
 beaconToken = V1.beaconToken
 
 ----------------------------------- ENCOINS Minting Policy ---------------------------------------
-
-bulletproofSetup :: BulletproofSetup
-bulletproofSetup = V1.bulletproofSetup
 
 -- Beacon currency symbol and verifierPKH
 type EncoinsParams = V1.EncoinsParams

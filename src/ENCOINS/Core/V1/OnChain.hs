@@ -33,9 +33,8 @@ import           PlutusTx                             (compile, applyCode, liftC
 import           PlutusTx.AssocMap                    (lookup, keys)
 import           PlutusTx.Prelude
 
-import           ENCOINS.Bulletproofs                      (BulletproofSetup(..), Proof, bulletproofM, bulletproofN, polarityToInteger)
-import           ENCOINS.BaseTypes                         (MintingPolarity, groupExp, groupGenerator)
-import           ENCOINS.Crypto.Field                      (toFieldElement)
+import           ENCOINS.Bulletproofs                      (Proof, polarityToInteger)
+import           ENCOINS.BaseTypes                         (MintingPolarity)
 import           ENCOINS.Orphans                           ()
 import           PlutusAppsExtra.Constraints.OnChain       (tokensMinted, filterUtxoSpent, filterUtxoProduced, utxoReferenced)
 import           PlutusAppsExtra.Scripts.OneShotCurrency   (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
@@ -68,11 +67,6 @@ beaconToken :: TxOutRef -> Value
 beaconToken = token . beaconAssetClass
 
 ----------------------------------- ENCOINS Minting Policy ---------------------------------------
-
-bulletproofSetup :: BulletproofSetup
-bulletproofSetup = BulletproofSetup groupGenerator (groupExp groupGenerator (toFieldElement 2))
-  (map (groupExp groupGenerator . toFieldElement) [3..(bulletproofN * bulletproofM + 2)])
-  (map (groupExp groupGenerator . toFieldElement) [(bulletproofN * bulletproofM + 3)..(2 * (bulletproofN * bulletproofM) + 2)])
 
 -- Beacon currency symbol and verifierPKH
 type EncoinsParams = (CurrencySymbol, BuiltinByteString)

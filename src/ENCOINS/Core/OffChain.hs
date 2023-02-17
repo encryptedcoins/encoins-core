@@ -21,7 +21,7 @@ import           PlutusAppsExtra.Types.Tx                       (TransactionBuil
 beaconMintTx :: TxOutRef -> TransactionBuilder ()
 beaconMintTx = V1.beaconMintTx
 
-beaconSendTx :: TxOutRef -> TransactionBuilder ()
+beaconSendTx :: TxOutRef -> BuiltinByteString -> TransactionBuilder ()
 beaconSendTx = V1.beaconSendTx
 
 ----------------------------------- ENCOINS Minting Policy ---------------------------------------

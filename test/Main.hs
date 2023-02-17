@@ -29,15 +29,16 @@ import           System.Random                    (randomIO)
 import           Test.QuickCheck                  (quickCheck)
 import           Text.Hex                         (decodeHex, encodeHex)
 
-import           ENCOINS.Bulletproofs             (Secret (..), Randomness (..), Input (..), Proof(..), bulletproof, parseBulletproofParams)
+import           ENCOINS.Bulletproofs             (BulletproofSetup (..), Secret (..), Randomness (..),
+                                                    Input (..), Proof(..), bulletproof, parseBulletproofParams)
 import           ENCOINS.BaseTypes                (MintingPolarity(..), groupExp, groupGenerator, fromGroupElement)
-import           ENCOINS.Core.OnChain             (encoinsPolicy, bulletproofSetup, encoinsSymbol, beaconCurrencySymbol, stakingValidatorAddress)
-import           ENCOINS.Core.V1.OffChain         (verifierPKH)
+import           ENCOINS.Core.OnChain             (encoinsPolicy, encoinsSymbol, beaconCurrencySymbol, stakingValidatorAddress)
 import           ENCOINS.Core.V1.OnChain          (hashRedeemer)
 import           ENCOINS.Crypto.Field             (Field(..))
 import           PlutusAppsExtra.Utils.Address    (bech32ToAddress)
 import           PlutusTx.Extra.ByteString        (toBytes)
 
+-- A helper function to convert Plutus data to JSON
 mkSchema :: Data -> String
 mkSchema (I i) = "{\"int\": " ++ show i ++ "}"
 mkSchema (B b) = "{\"bytes\": " ++ (show . encodeHex $ b) ++ "}"
@@ -51,37 +52,23 @@ mkSchema (Map entries) = "{\"map\": [" ++ lst ++ "]}"
 mkSchema (Constr n dats) = "{ \"constructor\": " ++ show n ++ ", \"fields\": [" ++ lst ++ "]}"
     where lst = intercalate ", " (map mkSchema dats)
 
+verifierPKH ::BuiltinByteString
+verifierPKH = toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC9365419D3446BD5A4DCDE19396AAC68070977D"
+
 main :: IO ()
 main = do
-    let beaconSymb = CurrencySymbol $ toBuiltin $ fromJust $ decodeHex "4cd1187e477d56e419c354f1e4c7997a736dfc5e095a2511aba0f75d"
+    let beaconSymb = beaconCurrencySymbol $
+            TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "171299765a0f14893a6880272e53689d8ceea8abe74168f494b29d0b6f751a9e") 2
         encoinsPar = (beaconSymb, verifierPKH)
         encoinsSymb = encoinsSymbol encoinsPar
         stakingAddr = serialiseAddress $ fromRight (error ()) $ toCardanoAddressInEra (Testnet $ NetworkMagic 2) $  stakingValidatorAddress encoinsSymb
 
-    print $ encoinsSymb
-    print $ stakingValidatorAddress encoinsSymb
+    -- Writing a new bulletproof setup to JSON
+    bulletproofSetup <- randomIO :: IO BulletproofSetup
+    writeFileJSON "result/bulletproof_setup.json" bulletproofSetup
+    -- Writing current currency symbol to JSON
+    writeFileJSON "result/encoinsPolicyId.json" $ toJSON encoinsSymb
+    -- Writing current staking address to JSON
+    writeFileJSON "result/stakingAddr.json" $ toJSON stakingAddr
 
-    -- Writing current bulletproof setup to JSON
-    writeFileJSON "testnet/setup.json" bulletproofSetup
-    -- Writing current minting script to JSON
-    writeFileJSON "testnet/encoinsScript.json" $ toJSON $ encoinsPolicy encoinsPar
-
-    -- Printing a test Redeemer in different formats
-    let verifierPRV = fromJust $ decodeHex "1DA4194798C1D3AA8B7E5E39EDA1F130D9123ACCC8CA31A82E033A6D007DA7EC"
-        beaconRef = TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "3ee12f1e8b72eca75a41a582cc788def0dae622a51db65aea6a9d2798843d80c") 3
-        addr = stakingValidatorAddress $ encoinsSymbol (beaconCurrencySymbol beaconRef, verifierPKH)
-        bp = parseBulletproofParams $ toBytes addr
-        s1 = Secret (F 78623591232) (F 3)
-        s2 = Secret (F 21879124) (F 5)
-        rs = Randomness (F 3417) (map F [1..20]) (map F [21..40]) (F 8532) (F 16512) (F 1235)
-        (v, inputs, proof) = bulletproof bulletproofSetup bp [s1, s2] [Mint, Mint] rs
-        inputs' = map (\(Input g p) -> (fromGroupElement g, p)) inputs
-        red = (addr, (v, inputs'), proof, "")
-        msg = hashRedeemer red
-        sig = toBuiltin $ fromJust $ decodeHex "4A9B88E284300489ED71F80D169D16317322E390EFFB7DB14ED707F8F696E3F4BC23759E7FC5779655116FBEB336D6C2EFD44ADACF9FDB5B69BFD8DF7D41A201"
-        red' = (addr, (v, inputs'), proof, sig)
-    writeFile "testnet/Schema" $ mkSchema $ builtinDataToData $ toBuiltinData red
-    print $ encodeHex $ fromBuiltin $ serialiseData $ toBuiltinData red
-    writeFileJSON "testnet/redeemer.json" red'
-    
     print "Done!"
