@@ -60,7 +60,6 @@ library
       mtl                                    -any,
       openapi3                               -any,
       optparse-applicative                   -any,
-      playground-common                      -any,
       plutus-apps-extra                      -any,
       plutus-contract                        -any,
       plutus-chain-index                     -any,

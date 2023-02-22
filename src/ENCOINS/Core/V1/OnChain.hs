@@ -21,27 +21,50 @@
 
 module ENCOINS.Core.V1.OnChain where
 
-import           Ledger.Ada                           (lovelaceValueOf)
-import           Ledger.Tokens                        (token)
-import           Ledger.Value                         (geq, noAdaValue, AssetClass (..))
-import           Plutus.Script.Utils.V2.Typed.Scripts (ValidatorTypes (..), TypedValidator,
-                                                        mkTypedValidator, mkUntypedValidator, mkUntypedMintingPolicy)
+import           Ledger.Ada                                (lovelaceValueOf)
+import           Ledger.Tokens                             (token)
+import           Ledger.Typed.Scripts                      (IsScriptContext(..), Versioned (..), Language (..))
+import           Ledger.Value                              (AssetClass (..), geq)
+import           Plutus.Script.Utils.V2.Scripts            (validatorHash, scriptCurrencySymbol, stakeValidatorHash)
 import           Plutus.V2.Ledger.Api
-import           Plutus.V2.Ledger.Contexts            (findOwnInput)
-import           PlutusTx                             (compile, applyCode, liftCode)
-import           PlutusTx.AssocMap                    (lookup)
+import           PlutusTx                                  (compile, applyCode, liftCode)
+import           PlutusTx.AssocMap                         (lookup, keys, member)
 import           PlutusTx.Prelude
 
-import           Constraints.OnChain                  (tokensMinted, filterUtxoSpent, filterUtxoProduced, utxoReferenced)
-import           ENCOINS.Bulletproofs
-import           ENCOINS.BaseTypes
-import           ENCOINS.Crypto.Field
-import           ENCOINS.Orphans                      ()
-import           PlutusTx.Extra.ByteString            (ToBuiltinByteString(..))
-import           Scripts.OneShotCurrency              (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
-import           Utils.Orphans                        ()
+import           ENCOINS.Bulletproofs                      (Proof, polarityToInteger)
+import           ENCOINS.BaseTypes                         (MintingPolarity)
+import           ENCOINS.Orphans                           ()
+import           PlutusAppsExtra.Constraints.OnChain       (tokensMinted, filterUtxoSpent, utxoReferenced, utxoProduced, findUtxoProduced, utxoSpent)
+import           PlutusAppsExtra.Scripts.OneShotCurrency   (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
+import           PlutusAppsExtra.Utils.Orphans             ()
+import           PlutusTx.Extra.ByteString                 (ToBuiltinByteString(..))
 
-------------------------------------- Beacon Minting Policy --------------------------------------
+---------------------------- Stake Owner Token Minting Policy --------------------------------------
+
+{-# INLINABLE stakeOwnerTokenName #-}
+stakeOwnerTokenName :: TokenName
+stakeOwnerTokenName = TokenName emptyByteString
+
+{-# INLINABLE stakeOwnerParams #-}
+stakeOwnerParams :: TxOutRef -> OneShotCurrencyParams
+stakeOwnerParams ref = mkCurrency ref [(stakeOwnerTokenName, 1)]
+
+stakeOwnerPolicy :: TxOutRef -> MintingPolicy
+stakeOwnerPolicy = oneShotCurrencyPolicy . stakeOwnerParams
+
+stakeOwnerPolicyV :: TxOutRef -> Versioned MintingPolicy
+stakeOwnerPolicyV = flip Versioned PlutusV2 . stakeOwnerPolicy
+
+stakeOwnerCurrencySymbol :: TxOutRef -> CurrencySymbol
+stakeOwnerCurrencySymbol = scriptCurrencySymbol . stakeOwnerPolicy
+
+stakeOwnerAssetClass :: TxOutRef -> AssetClass
+stakeOwnerAssetClass ref = AssetClass (stakeOwnerCurrencySymbol ref, stakeOwnerTokenName)
+
+stakeOwnerToken :: TxOutRef -> Value
+stakeOwnerToken = token . stakeOwnerAssetClass
+
+-------------------------------------- Beacon Minting Policy ---------------------------------------
 
 {-# INLINABLE beaconTokenName #-}
 beaconTokenName :: TokenName
@@ -54,44 +77,62 @@ beaconParams ref = mkCurrency ref [(beaconTokenName, 1)]
 beaconPolicy :: TxOutRef -> MintingPolicy
 beaconPolicy = oneShotCurrencyPolicy . beaconParams
 
------------------------------------ ENCOINS Minting Policy ---------------------------------------
+beaconPolicyV :: TxOutRef -> Versioned MintingPolicy
+beaconPolicyV = flip Versioned PlutusV2 . beaconPolicy
 
-bulletproofSetup :: BulletproofSetup
-bulletproofSetup = BulletproofSetup groupGenerator (groupExp groupGenerator (toFieldElement 2))
-  (map (groupExp groupGenerator . toFieldElement) [3..(bulletproofN * bulletproofM + 2)])
-  (map (groupExp groupGenerator . toFieldElement) [(bulletproofN * bulletproofM + 3)..(2 * (bulletproofN * bulletproofM) + 2)])
+beaconCurrencySymbol :: TxOutRef -> CurrencySymbol
+beaconCurrencySymbol = scriptCurrencySymbol . beaconPolicy
+
+beaconAssetClass :: TxOutRef -> AssetClass
+beaconAssetClass ref = AssetClass (beaconCurrencySymbol ref, beaconTokenName)
+
+beaconToken :: TxOutRef -> Value
+beaconToken = token . beaconAssetClass
+
+----------------------------------- ENCOINS Minting Policy ---------------------------------------
 
 -- Beacon currency symbol and verifierPKH
 type EncoinsParams = (CurrencySymbol, BuiltinByteString)
 
-type TxParams = Address
+-- Ledger and change addresses
+type TxParams = (Address, Address)
 type EncoinsInput = (Integer, [(BuiltinByteString, MintingPolarity)])
 type ProofSignature = BuiltinByteString
 type EncoinsRedeemer = (TxParams, EncoinsInput, Proof, ProofSignature)
 
 hashRedeemer :: EncoinsRedeemer -> BuiltinByteString
-hashRedeemer (addr, (v, inputs), proof, _) = sha2_256 $ toBytes addr `appendByteString` toBytes (v, inputs) `appendByteString` toBytes proof
+hashRedeemer ((ledgerAddr, changeAddr), (v, inputs), proof, _) =
+    sha2_256 $ toBytes ledgerAddr `appendByteString` toBytes changeAddr `appendByteString` toBytes (v, inputs) `appendByteString` toBytes proof
 
 {-# INLINABLE encoinName #-}
 encoinName :: BuiltinByteString -> TokenName
-encoinName = TokenName . sha2_256
+encoinName = TokenName
 
 -- TODO: remove on-chain sorting (requires sorting inputs and proof components)
+-- TODO: add constraints on the tokens in the produced Ledger utxo
 encoinsPolicyCheck :: EncoinsParams -> EncoinsRedeemer -> ScriptContext -> Bool
-encoinsPolicyCheck (beaconSymb, verifierPKH) red@(addr, (v, inputs), _, sig)
+encoinsPolicyCheck (beaconSymb, verifierPKH) red@((ledgerAddr, changeAddr), (v, inputs), _, sig)
     ctx@ScriptContext{scriptContextTxInfo=info} =
       cond0
       && cond1
       && cond2
       && cond3
+      && (cond4 || cond5)
   where
       beacon = token (AssetClass (beaconSymb, beaconTokenName))
-      val    = lovelaceValueOf (abs v * 1_000_000)
+      val   = lovelaceValueOf (v * 1_000_000)
 
       cond0 = tokensMinted ctx $ fromList $ sort $ map (\(bs, p) -> (encoinName bs, polarityToInteger p)) inputs
       cond1 = verifyEd25519Signature verifierPKH (hashRedeemer red) sig
-      cond2 = sum (map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == addr)) `geq` val
-      cond3 = utxoReferenced info (\o -> txOutAddress o == addr && txOutValue o `geq` beacon) || (v <= 0)
+      cond2 = utxoProduced info (\o -> txOutAddress o == changeAddr && txOutValue o `geq` (zero-val))
+      cond3 = utxoReferenced info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` beacon)
+
+      vMint = txInfoMint $ scriptContextTxInfo ctx
+      vOut  = sum $ map txOutValue $ filterUtxoSpent info (\o -> txOutAddress o == ledgerAddr)
+      vIn   = maybe zero txOutValue $ findUtxoProduced info (\o -> txOutAddress o == ledgerAddr && txOutDatum o /= NoOutputDatum)
+
+      cond4 = vIn == (vOut + val)         -- Wallet Mode
+      cond5 = vIn == (vOut + vMint + val) -- Ledger Mode
 
 encoinsPolicy :: EncoinsParams -> MintingPolicy
 encoinsPolicy par = mkMintingPolicyScript $
@@ -99,62 +140,72 @@ encoinsPolicy par = mkMintingPolicyScript $
         `PlutusTx.applyCode`
             PlutusTx.liftCode par
 
-------------------------------------- ADA Staking Validator --------------------------------------
+encoinsPolicyV :: EncoinsParams -> Versioned MintingPolicy
+encoinsPolicyV = flip Versioned PlutusV2 . encoinsPolicy
+
+encoinsSymbol :: EncoinsParams -> CurrencySymbol
+encoinsSymbol = scriptCurrencySymbol . encoinsPolicy
+
+encoinsAssetClass :: EncoinsParams -> BuiltinByteString -> AssetClass
+encoinsAssetClass par a = AssetClass (encoinsSymbol par, encoinName a)
+
+encoin :: EncoinsParams -> BuiltinByteString -> Value
+encoin par = token . encoinsAssetClass par
+
+encoinsInValue :: EncoinsParams -> Value -> [BuiltinByteString]
+encoinsInValue par = map unTokenName . maybe [] keys . lookup (encoinsSymbol par) . getValue
+
+--------------------------------------- ENCOINS Stake Validator ----------------------------------------
+
+-- Stake owner currency symbol
+type EncoinsStakeParams = CurrencySymbol
+
+{-# INLINABLE encoinsStakeValidatorCheck #-}
+encoinsStakeValidatorCheck :: EncoinsStakeParams -> () -> ScriptContext -> Bool
+encoinsStakeValidatorCheck stakeOwnerSymb _ ScriptContext{scriptContextTxInfo=info} = cond0
+  where
+    stakeOwner = token (AssetClass (stakeOwnerSymb, stakeOwnerTokenName))
+
+    cond0 = utxoSpent info (\o -> txOutValue o `geq` stakeOwner)
+
+encoinsStakeValidator :: EncoinsStakeParams -> StakeValidator
+encoinsStakeValidator par = mkStakeValidatorScript $
+    $$(PlutusTx.compile [|| mkUntypedStakeValidator . encoinsStakeValidatorCheck ||])
+        `PlutusTx.applyCode`
+            PlutusTx.liftCode par
+
+encoinsStakeValidatorV :: EncoinsStakeParams -> Versioned StakeValidator
+encoinsStakeValidatorV = flip Versioned PlutusV2 . encoinsStakeValidator
+
+encoinsStakeValidatorHash :: EncoinsStakeParams -> StakeValidatorHash
+encoinsStakeValidatorHash = stakeValidatorHash . encoinsStakeValidator
+
+------------------------------------- ENCOINS Ledger Validator --------------------------------------
 
 -- ENCOINS currency symbol
-type StakingParams = CurrencySymbol
-
-data StakingADA
-instance ValidatorTypes StakingADA where
-  type instance DatumType StakingADA = ()
-  type instance RedeemerType StakingADA = ()
-
-{-# INLINABLE stakingValidatorCheck #-}
-stakingValidatorCheck :: StakingParams -> () -> () -> ScriptContext -> Bool
-stakingValidatorCheck encoinsSymb _ _
-    ctx@ScriptContext{scriptContextTxInfo=info} = cond0
-  where
-    purp = Minting encoinsSymb
-    addr = txOutAddress $ txInInfoResolved $ fromMaybe (error ()) $ findOwnInput ctx -- this script's address
-    vOut = sum $ map txOutValue $ filterUtxoSpent info (\o -> txOutAddress o == addr)
-    vIn  = sum $ map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == addr)
-    val  = lovelaceValueOf $ (* 1_000_000) $ fromMaybe 0 $ do
-      red <- lookup purp $ txInfoRedeemers info
-      (_, (v, _), _, _) <- fromBuiltinData $ getRedeemer red :: Maybe EncoinsRedeemer
-      Just v
-
-    cond0 = vIn == (vOut + val)
-
-stakingTypedValidator :: StakingParams -> TypedValidator StakingADA
-stakingTypedValidator par = mkTypedValidator @StakingADA
-    ($$(PlutusTx.compile [|| stakingValidatorCheck ||])
-    `PlutusTx.applyCode` PlutusTx.liftCode par)
-    $$(PlutusTx.compile [|| wrap ||])
-  where
-    wrap = mkUntypedValidator @() @()
-
-------------------------------------- ENCOINS Ledger Validator -----------------------------------------
-
-data Ledgering
-instance ValidatorTypes Ledgering where
-  type instance DatumType Ledgering = ()
-  type instance RedeemerType Ledgering = ()
+type EncoinsLedgerParams = CurrencySymbol
 
 {-# INLINABLE ledgerValidatorCheck #-}
-ledgerValidatorCheck :: () -> () -> ScriptContext -> Bool
-ledgerValidatorCheck _ _
-    ctx@ScriptContext{scriptContextTxInfo=info} = cond0
-  where
-    addr  = txOutAddress $ txInInfoResolved $ fromMaybe (error ()) $ findOwnInput ctx -- this script's address
-    vOut  = noAdaValue $ sum $ map txOutValue $ filterUtxoSpent info (\o -> txOutAddress o == addr)
-    vIn   = noAdaValue $ sum $ map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == addr)
-    vMint = txInfoMint $ scriptContextTxInfo ctx
+ledgerValidatorCheck :: EncoinsLedgerParams -> () -> () -> ScriptContext -> Bool
+ledgerValidatorCheck encoinsSymb _ _
+    ScriptContext{scriptContextTxInfo=info} =  Minting encoinsSymb `member` txInfoRedeemers info
 
-    cond0 = vIn == (vOut + vMint)
+ledgerValidator :: EncoinsLedgerParams -> Validator
+ledgerValidator par = mkValidatorScript $
+    $$(PlutusTx.compile [|| mkUntypedValidator . ledgerValidatorCheck ||])
+        `PlutusTx.applyCode`
+            PlutusTx.liftCode par
 
-ledgerTypedValidator :: TypedValidator Ledgering
-ledgerTypedValidator = mkTypedValidator @Ledgering
-    $$(PlutusTx.compile [|| ledgerValidatorCheck ||])
-    $$(PlutusTx.compile [|| wrap ||])
-  where
-    wrap = mkUntypedValidator @() @()
+ledgerValidatorV :: EncoinsLedgerParams -> Versioned Validator
+ledgerValidatorV = flip Versioned PlutusV2 . ledgerValidator
+
+ledgerValidatorHash :: EncoinsLedgerParams -> ValidatorHash
+ledgerValidatorHash = validatorHash . ledgerValidator
+
+type EncoinsSpendParams = (EncoinsLedgerParams, EncoinsStakeParams)
+
+ledgerValidatorAddress :: EncoinsSpendParams -> Address
+ledgerValidatorAddress (encoinsSymb, stakeOwnerSymb) = Address
+    (ScriptCredential (ledgerValidatorHash encoinsSymb))
+    (Just $ StakingHash $ ScriptCredential $ ValidatorHash vh)
+    where StakeValidatorHash vh = encoinsStakeValidatorHash stakeOwnerSymb
