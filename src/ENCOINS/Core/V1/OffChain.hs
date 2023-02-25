@@ -79,7 +79,7 @@ encoinsTx (addrRelay, addrTreasury) par@(beaconSymb, _) (_, red@(addr, (v, input
         valEncoins  = sum $ map (\(bs, p) -> scale (polarityToInteger p) (encoin par bs)) inputs
     encoinsBurnTx par $ map fst coinsToBurn
     tokensMintedTx (encoinsPolicyV par) red valEncoins
-    stakingModifyTx (encoinsSymbol par) val 1
+    stakingModifyTx (encoinsSymbol par) val 0
     when (v > 0) $
         utxoReferencedTx (\_ o -> _decoratedTxOutAddress o == addr && _decoratedTxOutValue o `geq` beacon) $> ()
     when (v < 0) $ fromMaybe (failTx "encoinsTx" "The address in the redeemer is not locked by a public key." Nothing $> ()) $ do

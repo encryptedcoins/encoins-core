@@ -58,10 +58,10 @@ verifierPKH = toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC936541
 main :: IO ()
 main = do
     let beaconSymb = beaconCurrencySymbol $
-            TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "171299765a0f14893a6880272e53689d8ceea8abe74168f494b29d0b6f751a9e") 2
+            TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "4642e0b34efc6b475f99ca7ea39d1b15428090604d327946ed31324c71ab4846") 0
         encoinsPar = (beaconSymb, verifierPKH)
         encoinsSymb = encoinsSymbol encoinsPar
-        stakingAddr = serialiseAddress $ fromRight (error ()) $ toCardanoAddressInEra (Testnet $ NetworkMagic 2) $  stakingValidatorAddress encoinsSymb
+        stakingAddr = stakingValidatorAddress encoinsSymb
 
     -- Writing a new bulletproof setup to JSON
     bulletproofSetup <- randomIO :: IO BulletproofSetup
