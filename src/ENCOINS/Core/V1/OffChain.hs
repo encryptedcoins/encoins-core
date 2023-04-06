@@ -39,20 +39,29 @@ protocolFee n
     | n < 0 = lovelaceValueOf $ max 1_500_000 $ (negate n * 1_000_000) `divide` 200
     | otherwise = zero
 
+---------------------------- Stake Owner Token Minting Policy --------------------------------------
+
+stakeOwnerMintTx :: TxOutRef -> TransactionBuilder ()
+stakeOwnerMintTx ref = oneShotCurrencyMintTx (stakeOwnerParams ref) $> ()
+
+stakeOwnerTx :: TxOutRef -> TransactionBuilder ()
+stakeOwnerTx = stakeOwnerMintTx
+
 ------------------------------------- Beacon Minting Policy --------------------------------------
 
 beaconMintTx :: TxOutRef -> TransactionBuilder ()
 beaconMintTx ref = oneShotCurrencyMintTx (beaconParams ref) $> ()
 
-beaconSendTx :: TxOutRef -> BuiltinByteString -> TransactionBuilder ()
-beaconSendTx ref verifierPKH = utxoProducedScriptTx vh Nothing v ()
-  where vh = stakingValidatorHash $ encoinsSymbol (beaconCurrencySymbol ref, verifierPKH)
-        v  = beaconToken ref + lovelaceValueOf 2_000_000
+beaconSendTx :: TxOutRef -> BuiltinByteString -> TxOutRef -> TransactionBuilder ()
+beaconSendTx refBeacon verifierPKH refOwner = utxoProducedTx (ledgerValidatorAddress (encoinsSymb, stakeOwnerSymb)) v (Just ())
+  where encoinsSymb = encoinsSymbol (beaconCurrencySymbol refBeacon, verifierPKH)
+        stakeOwnerSymb = stakeOwnerCurrencySymbol refOwner
+        v  = beaconToken refBeacon + lovelaceValueOf 2_000_000
 
-beaconTx :: TxOutRef -> BuiltinByteString -> TransactionBuilder ()
-beaconTx ref verifierPKH = do
-    beaconMintTx ref
-    beaconSendTx ref verifierPKH
+beaconTx :: TxOutRef -> BuiltinByteString -> TxOutRef -> TransactionBuilder ()
+beaconTx refBeacon verifierPKH refOwner = do
+    beaconMintTx refBeacon
+    beaconSendTx refBeacon verifierPKH refOwner
 
 ----------------------------------- ENCOINS Minting Policy ---------------------------------------
 
@@ -63,7 +72,7 @@ encoinsBurnTx _   []       = return ()
 encoinsBurnTx par (bs:bss) = do
     let f = \_ o -> _decoratedTxOutValue o `geq` encoin par bs
     res1 <- utxoSpentPublicKeyTx' f
-    res2 <- utxoSpentScriptTx' f (const . const $ ledgerValidatorV) (const . const $ ())
+    res2 <- utxoSpentScriptTx' f (const . const $ ledgerValidatorV $ encoinsSymbol par) (const . const $ ())
     -- At most one of the results is a Just.
     case bool res2 res1 (isJust res1) of
       Nothing -> failTx "encoinsBurnTx" ("Cannot find the required coin: " <> encodeHex (fromBuiltin bs)) Nothing $> ()
@@ -71,82 +80,73 @@ encoinsBurnTx par (bs:bss) = do
         let bss' = filter (`notElem` encoinsInValue par (_decoratedTxOutValue o)) bss
         in encoinsBurnTx par bss'
 
-encoinsTx :: (Address, Address) -> EncoinsParams -> EncoinsRedeemerWithData -> TransactionBuilder ()
-encoinsTx (addrRelay, addrTreasury) par@(beaconSymb, _) (_, red@(addr, (v, inputs), _, _))  = do
+encoinsTx :: (Address, Address) -> EncoinsParams -> EncoinsStakeParams -> EncoinsRedeemer -> Integer -> TransactionBuilder ()
+encoinsTx (addrRelay, addrTreasury) par@(beaconSymb, _) stakeOwnerSymb red@((ledgerAddr, changeAddr), (v, inputs), _, _) n = do
     let beacon      = token (AssetClass (beaconSymb, beaconTokenName))
         coinsToBurn = filter (\(_, p) -> p == Burn) inputs
         val         = lovelaceValueOf (v * 1_000_000)
         valEncoins  = sum $ map (\(bs, p) -> scale (polarityToInteger p) (encoin par bs)) inputs
     encoinsBurnTx par $ map fst coinsToBurn
     tokensMintedTx (encoinsPolicyV par) red valEncoins
-    stakingModifyTx (encoinsSymbol par) val 0
-    when (v > 0) $
-        utxoReferencedTx (\_ o -> _decoratedTxOutAddress o == addr && _decoratedTxOutValue o `geq` beacon) $> ()
+    ledgerModifyTx (encoinsSymbol par, stakeOwnerSymb) val n
+    utxoReferencedTx (\_ o -> _decoratedTxOutAddress o == ledgerAddr && _decoratedTxOutValue o `geq` beacon) $> ()
     when (v < 0) $ fromMaybe (failTx "encoinsTx" "The address in the redeemer is not locked by a public key." Nothing $> ()) $ do
-        pkh <- toPubKeyHash addr
+        pkh <- toPubKeyHash changeAddr
         return $ do
             utxoProducedTx addrRelay    (protocolFee v) (Just ())
             utxoProducedTx addrTreasury (protocolFee v) (Just ())
-            utxoProducedPublicKeyTx pkh (stakingCredential addr) (negate val) (Nothing :: Maybe ())
+            utxoProducedPublicKeyTx pkh (stakingCredential changeAddr) (negate val) (Nothing :: Maybe ())
 
 postEncoinsPolicyTx :: EncoinsParams -> Integer -> TransactionBuilder ()
 postEncoinsPolicyTx par salt = postMintingPolicyTx (alwaysFalseValidatorAddress salt) (encoinsPolicyV par) (Just ()) zero
 
-------------------------------------- ADA Staking Validator --------------------------------------
+------------------------------------- ENCOINS Ledger Validator --------------------------------------
 
--- Spend utxo greater than the given value from the Staking script.
-stakingSpendTx' :: StakingParams -> Value -> TransactionBuilder (Maybe Value)
-stakingSpendTx' par val =
+-- Spend utxo greater than the given value from the ENCOINS Ledger script.
+ledgerSpendTx' :: EncoinsSpendParams -> Value -> TransactionBuilder (Maybe Value)
+ledgerSpendTx' par@(parLedger, _) val =
     fmap (_decoratedTxOutValue . snd) <$> utxoSpentScriptTx'
         (\_ o -> _decoratedTxOutValue o `geq` val
         && isAdaOnlyValue (_decoratedTxOutValue o)
-        && _decoratedTxOutAddress o == stakingValidatorAddress par)
-        (const . const $ stakingValidatorV par) (const . const $ ())
+        && _decoratedTxOutAddress o == ledgerValidatorAddress par)
+        (const . const $ ledgerValidatorV parLedger) (const . const $ ())
 
--- Spend utxo greater than the given value from the Staking script. Fails if the utxo is not found.
-stakingSpendTx :: StakingParams -> Value -> TransactionBuilder (Maybe Value)
-stakingSpendTx par val = do
-    res <- stakingSpendTx' par val
+-- Spend utxo greater than the given value from the ENCOINS Ledger script. Fails if the utxo is not found.
+ledgerSpendTx :: EncoinsSpendParams -> Value -> TransactionBuilder (Maybe Value)
+ledgerSpendTx par val = do
+    res <- ledgerSpendTx' par val
     if isNothing res
         then do
             utxos <- gets txConstructorLookups
-            failTx "stakingSpendTx" ("Cannot find a suitable utxo to spend. UTXOs: " <> pack (show utxos)) res
+            failTx "ledgerSpendTx" ("Cannot find a suitable utxo to spend. UTXOs: " <> pack (show utxos)) res
         else return res
 
 -- Combines several utxos into one.
-stakingCombineTx :: StakingParams -> Value -> Integer -> TransactionBuilder ()
-stakingCombineTx par val 0 = utxoProducedScriptTx (stakingValidatorHash par) Nothing val ()
-stakingCombineTx par val n = do
-    res <- stakingSpendTx par zero
+ledgerCombineTx :: EncoinsSpendParams -> Value -> Integer -> TransactionBuilder ()
+ledgerCombineTx par val 0 = utxoProducedTx (ledgerValidatorAddress par) val (Just ())
+ledgerCombineTx par val n = do
+    res <- ledgerSpendTx par zero
     let val' = val + fromMaybe zero res
-    stakingCombineTx par val' (n-1)
+    ledgerCombineTx par val' (n-1)
 
--- Modify the value locked in staking by the given value
-stakingModifyTx :: StakingParams -> Value -> Integer -> TransactionBuilder ()
-stakingModifyTx par val n
+-- Modify the value locked in the ENCOINS Ledger script by the given value
+ledgerModifyTx :: EncoinsSpendParams -> Value -> Integer -> TransactionBuilder ()
+ledgerModifyTx par val n
     -- If we modify the value by 1 ADA, we must spend at least one utxo.
     | val == lovelaceValueOf 1_000_000 = do
-        res  <- stakingSpendTx par zero
+        res  <- ledgerSpendTx par zero
         when (isJust res) $
-            utxoProducedScriptTx (stakingValidatorHash par) Nothing (fromJust res + val) ()
-    | val `gt` zero = utxoProducedScriptTx (stakingValidatorHash par) Nothing val ()
+            utxoProducedTx (ledgerValidatorAddress par) (fromJust res + val) (Just ())
+    | val `gt` zero = utxoProducedTx (ledgerValidatorAddress par) val (Just ())
     | otherwise      = when (val `lt` zero) $ do
         -- TODO: Try spending several utxo to get the required value
-        res  <- stakingSpendTx par (negate val)
-        res' <- mapM (const $ stakingSpendTx' par zero) [1..n] -- Spend `n` additional utxos
+        res  <- ledgerSpendTx par (negate val)
+        -- TODO: Randomize the selection process
+        res' <- mapM (const $ ledgerSpendTx' par zero) [1..n] -- Spend `n` additional utxos
         when (isJust res) $
             let valSpent  = fromJust res + sum (catMaybes res')
                 valChange = valSpent + val
-            in when (valChange `gt` zero) $ utxoProducedScriptTx (stakingValidatorHash par) Nothing valChange ()
+            in when (valChange `gt` zero) $ utxoProducedTx (ledgerValidatorAddress par) valChange (Just ())
 
-postStakingValidatorTx :: StakingParams -> Integer -> TransactionBuilder ()
-postStakingValidatorTx par salt = postValidatorTx (alwaysFalseValidatorAddress salt) (stakingValidatorV par) (Just ()) zero
-
-------------------------------------- ENCOINS Ledger Validator -----------------------------------------
-
-ledgerTx :: EncoinsParams -> [BuiltinByteString] -> TransactionBuilder ()
-ledgerTx par gs =
-    let vals = map (encoin par) gs
-    in mapM_ (\val -> utxoSpentScriptTx (\_ o -> _decoratedTxOutValue o `geq` val)
-        (const . const $ ledgerValidatorV) (const . const $ ())) vals
-        
+postStakingValidatorTx :: EncoinsLedgerParams -> Integer -> TransactionBuilder ()
+postStakingValidatorTx par salt = postValidatorTx (alwaysFalseValidatorAddress salt) (ledgerValidatorV par) (Just ()) zero

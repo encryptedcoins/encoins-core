@@ -32,10 +32,10 @@ import           Text.Hex                         (decodeHex, encodeHex)
 import           ENCOINS.Bulletproofs             (BulletproofSetup (..), Secret (..), Randomness (..),
                                                     Input (..), Proof(..), bulletproof, parseBulletproofParams)
 import           ENCOINS.BaseTypes                (MintingPolarity(..), groupExp, groupGenerator, fromGroupElement)
-import           ENCOINS.Core.OnChain             (encoinsPolicy, encoinsSymbol, beaconCurrencySymbol, stakingValidatorAddress)
-import           ENCOINS.Core.V1.OnChain          (hashRedeemer)
+import           ENCOINS.Core.OnChain             (encoinsPolicy, encoinsSymbol, beaconCurrencySymbol)
+import           ENCOINS.Core.V1.OnChain          (hashRedeemer, ledgerValidatorAddress)
 import           ENCOINS.Crypto.Field             (Field(..))
-import           PlutusAppsExtra.Utils.Address    (bech32ToAddress)
+import           PlutusAppsExtra.Utils.Address    (bech32ToAddress, addressToBech32)
 import           PlutusTx.Extra.ByteString        (toBytes)
 
 -- A helper function to convert Plutus data to JSON
@@ -57,11 +57,13 @@ verifierPKH = toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC936541
 
 main :: IO ()
 main = do
-    let beaconSymb = beaconCurrencySymbol $
-            TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "4642e0b34efc6b475f99ca7ea39d1b15428090604d327946ed31324c71ab4846") 0
-        encoinsPar = (beaconSymb, verifierPKH)
-        encoinsSymb = encoinsSymbol encoinsPar
-        stakingAddr = stakingValidatorAddress encoinsSymb
+    let stakeOwnerSymb = beaconCurrencySymbol $
+            TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "53cafd08c8f309d0fbdff986b65dfbe9008f1d6658eed48d736d89c4a2e522a2") 0
+        beaconSymb     = beaconCurrencySymbol $
+            TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "961c9f01189852e298e46c3e48bb63616a7ddaa05210fd13af06f95f1db99fc2") 0
+        encoinsPar     = (beaconSymb, verifierPKH)
+        encoinsSymb    = encoinsSymbol encoinsPar
+        ledgerAddr     = ledgerValidatorAddress (encoinsSymb, stakeOwnerSymb)
 
     -- Writing a new bulletproof setup to JSON
     bulletproofSetup <- randomIO :: IO BulletproofSetup
@@ -69,6 +71,6 @@ main = do
     -- Writing current currency symbol to JSON
     writeFileJSON "result/encoinsPolicyId.json" $ toJSON encoinsSymb
     -- Writing current staking address to JSON
-    writeFileJSON "result/stakingAddr.json" $ toJSON stakingAddr
+    writeFileJSON "result/ledgerAddr.json" $ toJSON ledgerAddr
 
     print "Done!"

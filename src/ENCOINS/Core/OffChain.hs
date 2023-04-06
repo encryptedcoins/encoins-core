@@ -16,42 +16,55 @@ import           ENCOINS.Core.V1.OffChain                       as V1
 import           ENCOINS.Core.V1.OnChain                        as V1
 import           PlutusAppsExtra.Types.Tx                       (TransactionBuilder)
 
+---------------------------- Stake Owner Token Minting Policy --------------------------------------
+
+stakeOwnerMintTx :: TxOutRef -> TransactionBuilder ()
+stakeOwnerMintTx = V1.stakeOwnerMintTx
+
+stakeOwnerTx :: TxOutRef -> TransactionBuilder ()
+stakeOwnerTx = V1.stakeOwnerTx
+
 ------------------------------------- Beacon Minting Policy --------------------------------------
 
 beaconMintTx :: TxOutRef -> TransactionBuilder ()
 beaconMintTx = V1.beaconMintTx
 
-beaconSendTx :: TxOutRef -> BuiltinByteString -> TransactionBuilder ()
+beaconSendTx :: TxOutRef -> BuiltinByteString -> TxOutRef -> TransactionBuilder ()
 beaconSendTx = V1.beaconSendTx
 
+beaconTx :: TxOutRef -> BuiltinByteString -> TxOutRef -> TransactionBuilder ()
+beaconTx = V1.beaconTx
+
 ----------------------------------- ENCOINS Minting Policy ---------------------------------------
+
+type EncoinsRedeemerWithData = V1.EncoinsRedeemerWithData
 
 encoinsBurnTx :: V1.EncoinsParams -> [BuiltinByteString] -> TransactionBuilder ()
 encoinsBurnTx = V1.encoinsBurnTx
 
-encoinsTx :: (Address, Address) -> V1.EncoinsParams -> V1.EncoinsRedeemerWithData -> TransactionBuilder ()
+encoinsTx :: (Address, Address) -> V1.EncoinsParams -> V1.EncoinsStakeParams -> V1.EncoinsRedeemer -> Integer -> TransactionBuilder ()
 encoinsTx = V1.encoinsTx
 
-------------------------------------- ADA Staking Validator --------------------------------------
+postEncoinsPolicyTx :: V1.EncoinsParams -> Integer -> TransactionBuilder ()
+postEncoinsPolicyTx = V1.postEncoinsPolicyTx
 
--- Spend utxo greater than the given value from the Staking script.
-stakingSpendTx' :: V1.StakingParams -> Value -> TransactionBuilder (Maybe Value)
-stakingSpendTx' = V1.stakingSpendTx'
+------------------------------------- ENCOINS Ledger Validator --------------------------------------
 
--- Spend utxo greater than the given value from the Staking script. Fails if the utxo is not found.
-stakingSpendTx :: V1.StakingParams -> Value -> TransactionBuilder (Maybe Value)
-stakingSpendTx = V1.stakingSpendTx
+-- Spend utxo greater than the given value from the ENCOINS Ledger script.
+stakingSpendTx' :: V1.EncoinsSpendParams -> Value -> TransactionBuilder (Maybe Value)
+stakingSpendTx' = V1.ledgerSpendTx'
+
+-- Spend utxo greater than the given value from the ENCOINS Ledger script. Fails if the utxo is not found.
+stakingSpendTx :: V1.EncoinsSpendParams -> Value -> TransactionBuilder (Maybe Value)
+stakingSpendTx = V1.ledgerSpendTx
 
 -- Combines several utxos into one.
-stakingCombineTx :: V1.StakingParams -> Value -> Integer -> TransactionBuilder ()
-stakingCombineTx = V1.stakingCombineTx
+stakingCombineTx :: V1.EncoinsSpendParams -> Value -> Integer -> TransactionBuilder ()
+stakingCombineTx = V1.ledgerCombineTx
 
 -- Modify the value locked in staking by the given value
-stakingModifyTx :: V1.StakingParams -> Value -> Integer -> TransactionBuilder ()
-stakingModifyTx = V1.stakingModifyTx
+stakingModifyTx :: V1.EncoinsSpendParams -> Value -> Integer -> TransactionBuilder ()
+stakingModifyTx = V1.ledgerModifyTx
 
-------------------------------------- ENCOINS Ledger Validator -----------------------------------------
-
-ledgerTx :: V1.EncoinsParams -> [BuiltinByteString] -> TransactionBuilder ()
-ledgerTx = V1.ledgerTx
-        
+postStakingValidatorTx :: V1.EncoinsLedgerParams -> Integer -> TransactionBuilder ()
+postStakingValidatorTx = V1.postStakingValidatorTx
