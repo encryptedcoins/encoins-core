@@ -37,12 +37,10 @@ beaconTx = V1.beaconTx
 
 ----------------------------------- ENCOINS Minting Policy ---------------------------------------
 
-type EncoinsRedeemerWithData = V1.EncoinsRedeemerWithData
-
-encoinsBurnTx :: V1.EncoinsParams -> [BuiltinByteString] -> TransactionBuilder ()
+encoinsBurnTx :: V1.EncoinsParams -> [BuiltinByteString] -> TransactionBuilder Value
 encoinsBurnTx = V1.encoinsBurnTx
 
-encoinsTx :: (Address, Address) -> V1.EncoinsParams -> V1.EncoinsStakeParams -> V1.EncoinsRedeemer -> Integer -> TransactionBuilder ()
+encoinsTx :: (Address, Address) -> V1.EncoinsParams -> V1.EncoinsStakeParams -> V1.EncoinsRedeemer -> EncoinsMode -> TransactionBuilder ()
 encoinsTx = V1.encoinsTx
 
 postEncoinsPolicyTx :: V1.EncoinsParams -> Integer -> TransactionBuilder ()
@@ -63,7 +61,7 @@ stakingCombineTx :: V1.EncoinsSpendParams -> Value -> Integer -> TransactionBuil
 stakingCombineTx = V1.ledgerCombineTx
 
 -- Modify the value locked in staking by the given value
-stakingModifyTx :: V1.EncoinsSpendParams -> Value -> Integer -> TransactionBuilder ()
+stakingModifyTx :: V1.EncoinsSpendParams -> Value -> TransactionBuilder ()
 stakingModifyTx = V1.ledgerModifyTx
 
 postStakingValidatorTx :: V1.EncoinsLedgerParams -> Integer -> TransactionBuilder ()

@@ -1,4 +1,6 @@
 {-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveAnyClass             #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
@@ -12,18 +14,21 @@
 module ENCOINS.Core.V1.OffChain where
 
 import           Control.Monad.State                        (when, gets)
+import           Data.Aeson                                 (ToJSON, FromJSON)
 import           Data.Bool                                  (bool)
 import           Data.Functor                               (($>), (<$>))
-import           Data.Maybe                                 (fromJust, catMaybes)
 import           Data.Text                                  (pack)
-import           Ledger                                     (DecoratedTxOut(..), _decoratedTxOutAddress)
-import           Ledger.Ada                                 (lovelaceValueOf)
+import           GHC.Generics                               (Generic)
+import           Ledger                                     (DecoratedTxOut(..), _decoratedTxOutAddress, maxMinAdaTxOut)
+import           Ledger.Ada                                 (lovelaceValueOf, toValue)
 import           Ledger.Address                             (toPubKeyHash, stakingCredential)
 import           Ledger.Tokens                              (token)
-import           Ledger.Value                               (AssetClass (..), geq, isAdaOnlyValue, gt, lt)
-import           Plutus.V2.Ledger.Api
+import           Ledger.Value                               (AssetClass (..), geq, gt, adaOnlyValue, leq)
+import           Plutus.V2.Ledger.Api                       hiding(singleton)
+import           PlutusTx.AssocMap                          (singleton, lookup)
 import           PlutusTx.Prelude                           hiding ((<$>), (<>), mapM)
-import           Prelude                                    ((<>), mapM, show)
+import           Prelude                                    ((<>), show)
+import qualified Prelude                                    as Haskell
 import           Text.Hex                                   (encodeHex)
 
 import           ENCOINS.BaseTypes                          (MintingPolarity (..))
@@ -34,10 +39,19 @@ import           PlutusAppsExtra.Scripts.CommonValidators   (alwaysFalseValidato
 import           PlutusAppsExtra.Scripts.OneShotCurrency    (oneShotCurrencyMintTx)
 import           PlutusAppsExtra.Types.Tx                   (TransactionBuilder, TxConstructor (..))
 
-protocolFee :: Integer -> Value
-protocolFee n
-    | n < 0 = lovelaceValueOf $ max 1_500_000 $ (negate n * 1_000_000) `divide` 200
+data EncoinsMode = WalletMode | LedgerMode
+    deriving (Haskell.Show, Haskell.Eq, Generic, FromJSON, ToJSON)
+
+instance Eq EncoinsMode where
+    (==) = (Haskell.==)
+
+protocolFee :: Integer -> EncoinsMode -> Value
+protocolFee n mode
+    | n < 0 = lovelaceValueOf $ max f $ (negate n * 1_000_000) `divide` 200
     | otherwise = zero
+    where f = case mode of
+            WalletMode -> 1_500_000
+            LedgerMode -> 2_000_000
 
 ---------------------------- Stake Owner Token Minting Policy --------------------------------------
 
@@ -65,36 +79,39 @@ beaconTx refBeacon verifierPKH refOwner = do
 
 ----------------------------------- ENCOINS Minting Policy ---------------------------------------
 
-type EncoinsRedeemerWithData = (Address, EncoinsRedeemer)
-
-encoinsBurnTx :: EncoinsParams -> [BuiltinByteString] -> TransactionBuilder ()
-encoinsBurnTx _   []       = return ()
-encoinsBurnTx par (bs:bss) = do
-    let f = \_ o -> _decoratedTxOutValue o `geq` encoin par bs
+-- Returns value spent from the ENCOINS Ledger.
+encoinsBurnTx :: EncoinsParams -> [BuiltinByteString] -> TransactionBuilder Value
+encoinsBurnTx _   []       = return zero
+encoinsBurnTx par bss = do
+    let bs = head bss
+        f  = \_ o -> _decoratedTxOutValue o `geq` encoin par bs
     res1 <- utxoSpentPublicKeyTx' f
     res2 <- utxoSpentScriptTx' f (const . const $ ledgerValidatorV $ encoinsSymbol par) (const . const $ ())
     -- At most one of the results is a Just.
     case bool res2 res1 (isJust res1) of
-      Nothing -> failTx "encoinsBurnTx" ("Cannot find the required coin: " <> encodeHex (fromBuiltin bs)) Nothing $> ()
-      Just (_, o) -> -- Filter out all encoins in the output and continue
+      Nothing -> failTx "encoinsBurnTx" ("Cannot find the required coin: " <> encodeHex (fromBuiltin bs)) Nothing $> zero
+      Just (_, o) ->
+        -- Filter out all encoins in the output
         let bss' = filter (`notElem` encoinsInValue par (_decoratedTxOutValue o)) bss
-        in encoinsBurnTx par bss'
+        -- Sum the current and the future values spent from the ENCOINS Ledger
+        in (+) (maybe zero (_decoratedTxOutValue . snd) res2) <$> encoinsBurnTx par bss'
 
-encoinsTx :: (Address, Address) -> EncoinsParams -> EncoinsStakeParams -> EncoinsRedeemer -> Integer -> TransactionBuilder ()
-encoinsTx (addrRelay, addrTreasury) par@(beaconSymb, _) stakeOwnerSymb red@((ledgerAddr, changeAddr), (v, inputs), _, _) n = do
+encoinsTx :: (Address, Address) -> EncoinsParams -> EncoinsStakeParams -> EncoinsRedeemer -> EncoinsMode -> TransactionBuilder ()
+encoinsTx (addrRelay, addrTreasury) par@(beaconSymb, _) stakeOwnerSymb red@((ledgerAddr, changeAddr), (v, inputs), _, _) mode = do
     let beacon      = token (AssetClass (beaconSymb, beaconTokenName))
         coinsToBurn = filter (\(_, p) -> p == Burn) inputs
         val         = lovelaceValueOf (v * 1_000_000)
         valEncoins  = sum $ map (\(bs, p) -> scale (polarityToInteger p) (encoin par bs)) inputs
-    encoinsBurnTx par $ map fst coinsToBurn
+    val' <- encoinsBurnTx par $ map fst coinsToBurn
     tokensMintedTx (encoinsPolicyV par) red valEncoins
-    ledgerModifyTx (encoinsSymbol par, stakeOwnerSymb) val n
+    let val'' = val + bool zero (val' + valEncoins) (mode == LedgerMode)
+    ledgerModifyTx (encoinsSymbol par, stakeOwnerSymb) val''
     utxoReferencedTx (\_ o -> _decoratedTxOutAddress o == ledgerAddr && _decoratedTxOutValue o `geq` beacon) $> ()
     when (v < 0) $ fromMaybe (failTx "encoinsTx" "The address in the redeemer is not locked by a public key." Nothing $> ()) $ do
         pkh <- toPubKeyHash changeAddr
         return $ do
-            utxoProducedTx addrRelay    (protocolFee v) (Just ())
-            utxoProducedTx addrTreasury (protocolFee v) (Just ())
+            utxoProducedTx addrRelay    (protocolFee v mode) (Just ())
+            utxoProducedTx addrTreasury (protocolFee v mode) (Just ())
             utxoProducedPublicKeyTx pkh (stakingCredential changeAddr) (negate val) (Nothing :: Maybe ())
 
 postEncoinsPolicyTx :: EncoinsParams -> Integer -> TransactionBuilder ()
@@ -102,12 +119,18 @@ postEncoinsPolicyTx par salt = postMintingPolicyTx (alwaysFalseValidatorAddress 
 
 ------------------------------------- ENCOINS Ledger Validator --------------------------------------
 
+encoinsOnlyValue :: EncoinsLedgerParams -> Value -> Value
+encoinsOnlyValue symb = maybe zero (Value . singleton symb) . lookup symb . getValue
+
+isEncoinsAndAdaOnlyValue :: EncoinsLedgerParams -> Value -> Bool
+isEncoinsAndAdaOnlyValue symb val = val == adaOnlyValue val + encoinsOnlyValue symb val
+
 -- Spend utxo greater than the given value from the ENCOINS Ledger script.
 ledgerSpendTx' :: EncoinsSpendParams -> Value -> TransactionBuilder (Maybe Value)
 ledgerSpendTx' par@(parLedger, _) val =
     fmap (_decoratedTxOutValue . snd) <$> utxoSpentScriptTx'
         (\_ o -> _decoratedTxOutValue o `geq` val
-        && isAdaOnlyValue (_decoratedTxOutValue o)
+        && isEncoinsAndAdaOnlyValue parLedger (_decoratedTxOutValue o)
         && _decoratedTxOutAddress o == ledgerValidatorAddress par)
         (const . const $ ledgerValidatorV parLedger) (const . const $ ())
 
@@ -130,23 +153,20 @@ ledgerCombineTx par val n = do
     ledgerCombineTx par val' (n-1)
 
 -- Modify the value locked in the ENCOINS Ledger script by the given value
-ledgerModifyTx :: EncoinsSpendParams -> Value -> Integer -> TransactionBuilder ()
-ledgerModifyTx par val n
+ledgerModifyTx :: EncoinsSpendParams -> Value -> TransactionBuilder ()
+ledgerModifyTx par val
     -- If we modify the value by 1 ADA, we must spend at least one utxo.
-    | val == lovelaceValueOf 1_000_000 = do
-        res  <- ledgerSpendTx par zero
-        when (isJust res) $
-            utxoProducedTx (ledgerValidatorAddress par) (fromJust res + val) (Just ())
+    | adaOnlyValue val `leq` toValue maxMinAdaTxOut = do
+        val' <- fromMaybe zero <$> ledgerSpendTx par zero
+        ledgerModifyTx par (val + val')
     | val `gt` zero = utxoProducedTx (ledgerValidatorAddress par) val (Just ())
-    | otherwise      = when (val `lt` zero) $ do
+    | otherwise     = do
+        let valAda = negate $ adaOnlyValue val
         -- TODO: Try spending several utxo to get the required value
-        res  <- ledgerSpendTx par (negate val)
+        val'  <- fromMaybe zero <$> ledgerSpendTx par valAda
         -- TODO: Randomize the selection process
-        res' <- mapM (const $ ledgerSpendTx' par zero) [1..n] -- Spend `n` additional utxos
-        when (isJust res) $
-            let valSpent  = fromJust res + sum (catMaybes res')
-                valChange = valSpent + val
-            in when (valChange `gt` zero) $ utxoProducedTx (ledgerValidatorAddress par) valChange (Just ())
+        val'' <- fromMaybe zero <$> ledgerSpendTx' par zero -- Spend an additional utxo
+        ledgerModifyTx par (val + val' + val'')
 
 postStakingValidatorTx :: EncoinsLedgerParams -> Integer -> TransactionBuilder ()
 postStakingValidatorTx par salt = postValidatorTx (alwaysFalseValidatorAddress salt) (ledgerValidatorV par) (Just ()) zero

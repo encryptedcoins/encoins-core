@@ -94,6 +94,7 @@ beaconToken = token . beaconAssetClass
 -- Beacon currency symbol and verifierPKH
 type EncoinsParams = (CurrencySymbol, BuiltinByteString)
 
+-- Ledger and change addresses
 type TxParams = (Address, Address)
 type EncoinsInput = (Integer, [(BuiltinByteString, MintingPolarity)])
 type ProofSignature = BuiltinByteString
@@ -108,6 +109,7 @@ encoinName :: BuiltinByteString -> TokenName
 encoinName = TokenName
 
 -- TODO: remove on-chain sorting (requires sorting inputs and proof components)
+-- TODO: add constraints on the tokens in the produced Ledger utxo
 encoinsPolicyCheck :: EncoinsParams -> EncoinsRedeemer -> ScriptContext -> Bool
 encoinsPolicyCheck (beaconSymb, verifierPKH) red@((ledgerAddr, changeAddr), (v, inputs), _, sig)
     ctx@ScriptContext{scriptContextTxInfo=info} =
