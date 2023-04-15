@@ -40,7 +40,7 @@ import           PlutusAppsExtra.Scripts.OneShotCurrency    (oneShotCurrencyMint
 import           PlutusAppsExtra.Types.Tx                   (TransactionBuilder, TxConstructor (..))
 
 data EncoinsMode = WalletMode | LedgerMode
-    deriving (Haskell.Show, Haskell.Eq, Generic, FromJSON, ToJSON)
+    deriving (Haskell.Show, Haskell.Read, Haskell.Eq, Generic, FromJSON, ToJSON)
 
 instance Eq EncoinsMode where
     (==) = (Haskell.==)
@@ -156,7 +156,7 @@ ledgerCombineTx par val n = do
 ledgerModifyTx :: EncoinsSpendParams -> Value -> TransactionBuilder ()
 ledgerModifyTx par val
     -- If we modify the value by 1 ADA, we must spend at least one utxo.
-    | adaOnlyValue val `leq` toValue maxMinAdaTxOut = do
+    | adaOnlyValue val `leq` toValue maxMinAdaTxOut && adaOnlyValue val `gt` zero = do
         val' <- fromMaybe zero <$> ledgerSpendTx par zero
         ledgerModifyTx par (val + val')
     | val `gt` zero = utxoProducedTx (ledgerValidatorAddress par) val (Just ())
