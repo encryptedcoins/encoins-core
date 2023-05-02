@@ -36,6 +36,7 @@ import           ENCOINS.BaseTypes                         (MintingPolarity)
 import           ENCOINS.Orphans                           ()
 import           PlutusAppsExtra.Constraints.OnChain       (tokensMinted, filterUtxoSpent, utxoReferenced, utxoProduced, findUtxoProduced, utxoSpent)
 import           PlutusAppsExtra.Scripts.OneShotCurrency   (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
+import           PlutusAppsExtra.Utils.Datum
 import           PlutusAppsExtra.Utils.Orphans             ()
 import           PlutusTx.Extra.ByteString                 (ToBuiltinByteString(..))
 
@@ -129,7 +130,7 @@ encoinsPolicyCheck (beaconSymb, verifierPKH) red@((ledgerAddr, changeAddr), (v, 
 
       vMint = txInfoMint $ scriptContextTxInfo ctx
       vOut  = sum $ map txOutValue $ filterUtxoSpent info (\o -> txOutAddress o == ledgerAddr)
-      vIn   = maybe zero txOutValue $ findUtxoProduced info (\o -> txOutAddress o == ledgerAddr && txOutDatum o /= NoOutputDatum)
+      vIn   = maybe zero txOutValue $ findUtxoProduced info (\o -> txOutAddress o == ledgerAddr && isInlineUnit (txOutDatum o))
 
       cond4 = vIn == (vOut + val)         -- Wallet Mode
       cond5 = vIn == (vOut + vMint + val) -- Ledger Mode
