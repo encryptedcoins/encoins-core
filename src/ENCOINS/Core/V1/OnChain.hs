@@ -112,15 +112,13 @@ encoinName = TokenName
 -- TODO: remove on-chain sorting (requires sorting inputs and proof components)
 -- TODO: add constraints on the tokens in the produced Ledger utxo
 encoinsPolicyCheck :: EncoinsParams -> EncoinsRedeemer -> ScriptContext -> Bool
-encoinsPolicyCheck par@(beaconSymb, verifierPKH) red@((ledgerAddr, changeAddr), (v, inputs), _, sig)
+encoinsPolicyCheck (beaconSymb, verifierPKH) red@((ledgerAddr, changeAddr), (v, inputs), _, sig)
     ctx@ScriptContext{scriptContextTxInfo=info} =
       cond0
       && cond1
       && cond2
       && cond3
       && (cond4 || cond5)
-      && cond6
-      && cond7
   where
       beacon = token (AssetClass (beaconSymb, beaconTokenName))
       val   = lovelaceValueOf (v * 1_000_000)
@@ -136,9 +134,6 @@ encoinsPolicyCheck par@(beaconSymb, verifierPKH) red@((ledgerAddr, changeAddr), 
 
       cond4 = vIn == (vOut + val)         -- Wallet Mode
       cond5 = vIn == (vOut + vMint + val) -- Ledger Mode
-
-      cond6 = keys (getValue vIn) == [adaSymbol, encoinsSymbol par]
-      cond7 = length (encoinsInValue par vIn) < 6
 
 encoinsPolicy :: EncoinsParams -> MintingPolicy
 encoinsPolicy par = mkMintingPolicyScript $
@@ -158,7 +153,6 @@ encoinsAssetClass par a = AssetClass (encoinsSymbol par, encoinName a)
 encoin :: EncoinsParams -> BuiltinByteString -> Value
 encoin par = token . encoinsAssetClass par
 
-{-# INLINABLE encoinsInValue #-}
 encoinsInValue :: EncoinsParams -> Value -> [BuiltinByteString]
 encoinsInValue par = map unTokenName . maybe [] keys . lookup (encoinsSymbol par) . getValue
 
