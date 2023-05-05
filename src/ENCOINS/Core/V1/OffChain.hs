@@ -1,43 +1,44 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE DeriveAnyClass             #-}
-{-# LANGUAGE DeriveGeneric              #-}
-{-# LANGUAGE DerivingStrategies         #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE NoImplicitPrelude          #-}
-{-# LANGUAGE NumericUnderscores         #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE DerivingStrategies    #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NoImplicitPrelude     #-}
+{-# LANGUAGE NumericUnderscores    #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeFamilies          #-}
 
 module ENCOINS.Core.V1.OffChain where
 
-import           Control.Monad.State                        (when, gets)
-import           Data.Aeson                                 (ToJSON, FromJSON)
-import           Data.Bool                                  (bool)
-import           Data.Functor                               (($>), (<$>))
-import           Data.Text                                  (pack)
-import           GHC.Generics                               (Generic)
-import           Ledger                                     (DecoratedTxOut(..), _decoratedTxOutAddress, maxMinAdaTxOut)
-import           Ledger.Ada                                 (lovelaceValueOf, toValue)
-import           Ledger.Address                             (toPubKeyHash, stakingCredential)
-import           Ledger.Tokens                              (token)
-import           Ledger.Value                               (AssetClass (..), geq, gt, adaOnlyValue, leq)
-import           Plutus.V2.Ledger.Api                       hiding(singleton)
-import           PlutusTx.AssocMap                          (singleton, lookup)
-import           PlutusTx.Prelude                           hiding ((<$>), (<>), mapM)
-import           Prelude                                    ((<>), show)
-import qualified Prelude                                    as Haskell
-import           Text.Hex                                   (encodeHex)
+import           Control.Monad.State                      (gets, when)
+import           Data.Aeson                               (FromJSON, ToJSON)
+import           Data.Bool                                (bool)
+import           Data.Functor                             (($>), (<$>))
+import           Data.Text                                (pack)
+import           GHC.Generics                             (Generic)
+import           Ledger                                   (DecoratedTxOut (..), _decoratedTxOutAddress, maxMinAdaTxOut)
+import           Ledger.Ada                               (lovelaceValueOf, toValue)
+import           Ledger.Address                           (stakingCredential, toPubKeyHash)
+import           Ledger.Tokens                            (token)
+import           Ledger.Value                             (AssetClass (..), adaOnlyValue, geq, gt, leq)
+import           Plutus.V2.Ledger.Api                     hiding (singleton)
+import           PlutusTx.AssocMap                        (lookup, singleton)
+import           PlutusTx.Prelude                         hiding (mapM, (<$>), (<>))
+import           Prelude                                  (show, (<>))
+import qualified Prelude                                  as Haskell
+import           Text.Hex                                 (encodeHex)
 
-import           ENCOINS.BaseTypes                          (MintingPolarity (..))
-import           ENCOINS.Bulletproofs                       (polarityToInteger)
+import           ENCOINS.BaseTypes                        (MintingPolarity (..))
+import           ENCOINS.Bulletproofs                     (polarityToInteger)
 import           ENCOINS.Core.V1.OnChain
 import           PlutusAppsExtra.Constraints.OffChain
-import           PlutusAppsExtra.Scripts.CommonValidators   (alwaysFalseValidatorAddress)
-import           PlutusAppsExtra.Scripts.OneShotCurrency    (oneShotCurrencyMintTx)
-import           PlutusAppsExtra.Types.Tx                   (TransactionBuilder, TxConstructor (..))
+import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
+import           PlutusAppsExtra.Scripts.OneShotCurrency  (oneShotCurrencyMintTx)
+import           PlutusAppsExtra.Types.Tx                 (TransactionBuilder, TxConstructor (..))
+import           PlutusAppsExtra.Utils.Datum              (hashedUnit, inlinedUnit)
 
 data EncoinsMode = WalletMode | LedgerMode
     deriving (Haskell.Show, Haskell.Read, Haskell.Eq, Generic, FromJSON, ToJSON)
@@ -67,7 +68,7 @@ beaconMintTx :: TxOutRef -> TransactionBuilder ()
 beaconMintTx ref = oneShotCurrencyMintTx (beaconParams ref) $> ()
 
 beaconSendTx :: TxOutRef -> BuiltinByteString -> TxOutRef -> TransactionBuilder ()
-beaconSendTx refBeacon verifierPKH refOwner = utxoProducedTx (ledgerValidatorAddress (encoinsSymb, stakeOwnerSymb)) v (Just ())
+beaconSendTx refBeacon verifierPKH refOwner = utxoProducedTx (ledgerValidatorAddress (encoinsSymb, stakeOwnerSymb)) v (Just hashedUnit)
   where encoinsSymb = encoinsSymbol (beaconCurrencySymbol refBeacon, verifierPKH)
         stakeOwnerSymb = stakeOwnerCurrencySymbol refOwner
         v  = beaconToken refBeacon + lovelaceValueOf 2_000_000
@@ -110,12 +111,12 @@ encoinsTx (addrRelay, addrTreasury) par@(beaconSymb, _) stakeOwnerSymb red@((led
     when (v < 0) $ fromMaybe (failTx "encoinsTx" "The address in the redeemer is not locked by a public key." Nothing $> ()) $ do
         pkh <- toPubKeyHash changeAddr
         return $ do
-            utxoProducedTx addrRelay    (protocolFee v mode) (Just ())
-            utxoProducedTx addrTreasury (protocolFee v mode) (Just ())
-            utxoProducedPublicKeyTx pkh (stakingCredential changeAddr) (negate val) (Nothing :: Maybe ())
+            utxoProducedTx addrRelay    (protocolFee v mode) (Just inlinedUnit)
+            utxoProducedTx addrTreasury (protocolFee v mode) (Just inlinedUnit)
+            utxoProducedPublicKeyTx pkh (stakingCredential changeAddr) (negate val) Nothing
 
 postEncoinsPolicyTx :: EncoinsParams -> Integer -> TransactionBuilder ()
-postEncoinsPolicyTx par salt = postMintingPolicyTx (alwaysFalseValidatorAddress salt) (encoinsPolicyV par) (Just ()) zero
+postEncoinsPolicyTx par salt = postMintingPolicyTx (alwaysFalseValidatorAddress salt) (encoinsPolicyV par) (Just inlinedUnit) zero
 
 ------------------------------------- ENCOINS Ledger Validator --------------------------------------
 
@@ -146,7 +147,7 @@ ledgerSpendTx par val = do
 
 -- Combines several utxos into one.
 ledgerCombineTx :: EncoinsSpendParams -> Value -> Integer -> TransactionBuilder ()
-ledgerCombineTx par val 0 = utxoProducedTx (ledgerValidatorAddress par) val (Just ())
+ledgerCombineTx par val 0 = utxoProducedTx (ledgerValidatorAddress par) val (Just inlinedUnit)
 ledgerCombineTx par val n = do
     res <- ledgerSpendTx par zero
     let val' = val + fromMaybe zero res
@@ -159,7 +160,7 @@ ledgerModifyTx par val
     | adaOnlyValue val `leq` toValue maxMinAdaTxOut && adaOnlyValue val `gt` zero = do
         val' <- fromMaybe zero <$> ledgerSpendTx par zero
         ledgerModifyTx par (val + val')
-    | val `gt` zero = utxoProducedTx (ledgerValidatorAddress par) val (Just ())
+    | val `gt` zero = utxoProducedTx (ledgerValidatorAddress par) val (Just inlinedUnit)
     | otherwise     = do
         let valAda = negate $ adaOnlyValue val
         -- TODO: Try spending several utxo to get the required value
@@ -169,4 +170,4 @@ ledgerModifyTx par val
         ledgerModifyTx par (val + val' + val'')
 
 postStakingValidatorTx :: EncoinsLedgerParams -> Integer -> TransactionBuilder ()
-postStakingValidatorTx par salt = postValidatorTx (alwaysFalseValidatorAddress salt) (ledgerValidatorV par) (Just ()) zero
+postStakingValidatorTx par salt = postValidatorTx (alwaysFalseValidatorAddress salt) (ledgerValidatorV par) (Just inlinedUnit) zero
