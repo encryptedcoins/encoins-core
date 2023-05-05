@@ -37,7 +37,7 @@ beaconTx = V1.beaconTx
 
 ----------------------------------- ENCOINS Minting Policy ---------------------------------------
 
-encoinsBurnTx :: V1.EncoinsParams -> [BuiltinByteString] -> TransactionBuilder Value
+encoinsBurnTx :: V1.EncoinsParams -> [BuiltinByteString] -> EncoinsMode -> TransactionBuilder Value
 encoinsBurnTx = V1.encoinsBurnTx
 
 encoinsTx :: (Address, Address) -> V1.EncoinsParams -> V1.EncoinsStakeParams -> V1.EncoinsRedeemer -> EncoinsMode -> TransactionBuilder ()

@@ -47,7 +47,7 @@ instance Eq EncoinsMode where
 
 protocolFee :: Integer -> EncoinsMode -> Value
 protocolFee n mode
-    | n < 0 = lovelaceValueOf $ max f $ (negate n * 1_000_000) `divide` 200
+    | n < 0 || mode == LedgerMode = lovelaceValueOf $ max f $ (negate n * 1_000_000) `divide` 200
     | otherwise = zero
     where f = case mode of
             WalletMode -> 1_500_000
@@ -80,9 +80,9 @@ beaconTx refBeacon verifierPKH refOwner = do
 ----------------------------------- ENCOINS Minting Policy ---------------------------------------
 
 -- Returns value spent from the ENCOINS Ledger.
-encoinsBurnTx :: EncoinsParams -> [BuiltinByteString] -> TransactionBuilder Value
-encoinsBurnTx _   []       = return zero
-encoinsBurnTx par bss = do
+encoinsBurnTx :: EncoinsParams -> [BuiltinByteString] -> EncoinsMode -> TransactionBuilder Value
+encoinsBurnTx _   []  _    = return zero
+encoinsBurnTx par bss mode = do
     let bs = head bss
         f  = \_ o -> _decoratedTxOutValue o `geq` encoin par bs
     res1 <- utxoSpentPublicKeyTx' f
@@ -94,7 +94,7 @@ encoinsBurnTx par bss = do
         -- Filter out all encoins in the output
         let bss' = filter (`notElem` encoinsInValue par (_decoratedTxOutValue o)) bss
         -- Sum the current and the future values spent from the ENCOINS Ledger
-        in (+) (maybe zero (_decoratedTxOutValue . snd) res2) <$> encoinsBurnTx par bss'
+        in (+) (maybe zero (_decoratedTxOutValue . snd) res2) <$> encoinsBurnTx par bss' mode
 
 encoinsTx :: (Address, Address) -> EncoinsParams -> EncoinsStakeParams -> EncoinsRedeemer -> EncoinsMode -> TransactionBuilder ()
 encoinsTx (addrRelay, addrTreasury) par@(beaconSymb, _) stakeOwnerSymb red@((ledgerAddr, changeAddr), (v, inputs), _, _) mode = do
@@ -102,7 +102,7 @@ encoinsTx (addrRelay, addrTreasury) par@(beaconSymb, _) stakeOwnerSymb red@((led
         coinsToBurn = filter (\(_, p) -> p == Burn) inputs
         val         = lovelaceValueOf (v * 1_000_000)
         valEncoins  = sum $ map (\(bs, p) -> scale (polarityToInteger p) (encoin par bs)) inputs
-    val' <- encoinsBurnTx par $ map fst coinsToBurn
+    val' <- encoinsBurnTx par (map fst coinsToBurn) mode
     tokensMintedTx (encoinsPolicyV par) red valEncoins
     let val'' = val + bool zero (val' + valEncoins) (mode == LedgerMode)
     ledgerModifyTx (encoinsSymbol par, stakeOwnerSymb) val''
