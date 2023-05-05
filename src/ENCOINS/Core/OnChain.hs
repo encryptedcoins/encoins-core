@@ -17,8 +17,10 @@ import           Ledger.Value                              (AssetClass)
 import           Plutus.V2.Ledger.Api
 import           PlutusTx.Prelude
 
-import           ENCOINS.Core.V1.OnChain                   as V1
+import qualified ENCOINS.Core.V1.OnChain                   as V1
 import           PlutusAppsExtra.Scripts.OneShotCurrency   (OneShotCurrencyParams)
+
+type EncoinsProtocolParams = V1.EncoinsProtocolParams
 
 ---------------------------- Stake Owner Token Minting Policy --------------------------------------
 
@@ -26,23 +28,23 @@ import           PlutusAppsExtra.Scripts.OneShotCurrency   (OneShotCurrencyParam
 stakeOwnerTokenName :: TokenName
 stakeOwnerTokenName = V1.stakeOwnerTokenName
 
-{-# INLINABLE stakeOwnerParams #-}
-stakeOwnerParams :: TxOutRef -> OneShotCurrencyParams
-stakeOwnerParams = V1.stakeOwnerParams
+{-# INLINABLE stakeOwnerMintParams #-}
+stakeOwnerMintParams :: EncoinsProtocolParams -> OneShotCurrencyParams
+stakeOwnerMintParams = V1.stakeOwnerMintParams
 
-stakeOwnerPolicy :: TxOutRef -> MintingPolicy
+stakeOwnerPolicy :: EncoinsProtocolParams -> MintingPolicy
 stakeOwnerPolicy = V1.stakeOwnerPolicy
 
-stakeOwnerPolicyV :: TxOutRef -> Versioned MintingPolicy
+stakeOwnerPolicyV :: EncoinsProtocolParams -> Versioned MintingPolicy
 stakeOwnerPolicyV = V1.stakeOwnerPolicyV
 
-stakeOwnerCurrencySymbol :: TxOutRef -> CurrencySymbol
+stakeOwnerCurrencySymbol :: EncoinsProtocolParams -> CurrencySymbol
 stakeOwnerCurrencySymbol = V1.stakeOwnerCurrencySymbol
 
-stakeOwnerAssetClass :: TxOutRef -> AssetClass
+stakeOwnerAssetClass :: EncoinsProtocolParams -> AssetClass
 stakeOwnerAssetClass = V1.stakeOwnerAssetClass
 
-stakeOwnerToken :: TxOutRef -> Value
+stakeOwnerToken :: EncoinsProtocolParams -> Value
 stakeOwnerToken = V1.stakeOwnerToken
 
 ------------------------------------- Beacon Minting Policy --------------------------------------
@@ -51,98 +53,99 @@ stakeOwnerToken = V1.stakeOwnerToken
 beaconTokenName :: TokenName
 beaconTokenName = V1.beaconTokenName
 
-{-# INLINABLE beaconParams #-}
-beaconParams :: TxOutRef -> OneShotCurrencyParams
-beaconParams = V1.beaconParams
+{-# INLINABLE beaconMintParams #-}
+beaconMintParams :: EncoinsProtocolParams -> OneShotCurrencyParams
+beaconMintParams = V1.beaconMintParams
 
-beaconPolicy :: TxOutRef -> MintingPolicy
+beaconPolicy :: EncoinsProtocolParams -> MintingPolicy
 beaconPolicy = V1.beaconPolicy
 
-beaconPolicyV :: TxOutRef -> Versioned MintingPolicy
+beaconPolicyV :: EncoinsProtocolParams -> Versioned MintingPolicy
 beaconPolicyV = V1.beaconPolicyV
 
-beaconCurrencySymbol :: TxOutRef -> CurrencySymbol
+beaconCurrencySymbol :: EncoinsProtocolParams -> CurrencySymbol
 beaconCurrencySymbol = V1.beaconCurrencySymbol
 
-beaconAssetClass :: TxOutRef -> AssetClass
+beaconAssetClass :: EncoinsProtocolParams -> AssetClass
 beaconAssetClass = V1.beaconAssetClass
 
-beaconToken :: TxOutRef -> Value
+beaconToken :: EncoinsProtocolParams -> Value
 beaconToken = V1.beaconToken
 
 ----------------------------------- ENCOINS Minting Policy ---------------------------------------
 
 -- Beacon currency symbol and verifierPKH
-type EncoinsParams = V1.EncoinsParams
+type EncoinsPolicyParams = V1.EncoinsPolicyParams
 
 type TxParams = V1.TxParams
 type EncoinsInput = V1.EncoinsInput
 type ProofSignature = V1.ProofSignature
 type EncoinsRedeemer = V1.EncoinsRedeemer
 
-hashRedeemer :: V1.EncoinsRedeemer -> BuiltinByteString
-hashRedeemer = V1.hashRedeemer
+hashRedeemer :: EncoinsRedeemer -> BuiltinByteString
+hashRedeemer = hashRedeemer
 
 {-# INLINABLE encoinName #-}
 encoinName :: BuiltinByteString -> TokenName
 encoinName = V1.encoinName
 
-encoinsPolicyCheck :: V1.EncoinsParams -> V1.EncoinsRedeemer -> ScriptContext -> Bool
+encoinsPolicyCheck :: EncoinsPolicyParams -> EncoinsRedeemer -> ScriptContext -> Bool
 encoinsPolicyCheck = V1.encoinsPolicyCheck
 
-encoinsPolicy :: V1.EncoinsParams -> MintingPolicy
+toEncoinsPolicyParams :: EncoinsProtocolParams -> EncoinsPolicyParams
+toEncoinsPolicyParams = V1.toEncoinsPolicyParams
+
+encoinsPolicy :: EncoinsProtocolParams -> MintingPolicy
 encoinsPolicy = V1.encoinsPolicy
 
-encoinsPolicyV :: V1.EncoinsParams -> Versioned MintingPolicy
+encoinsPolicyV :: EncoinsProtocolParams -> Versioned MintingPolicy
 encoinsPolicyV = V1.encoinsPolicyV
 
-encoinsSymbol :: V1.EncoinsParams -> CurrencySymbol
+encoinsSymbol :: EncoinsProtocolParams -> CurrencySymbol
 encoinsSymbol = V1.encoinsSymbol
 
-encoinsAssetClass :: V1.EncoinsParams -> BuiltinByteString -> AssetClass
+encoinsAssetClass :: EncoinsProtocolParams -> BuiltinByteString -> AssetClass
 encoinsAssetClass = V1.encoinsAssetClass
 
-encoin :: V1.EncoinsParams -> BuiltinByteString -> Value
+encoin :: EncoinsProtocolParams -> BuiltinByteString -> Value
 encoin = V1.encoin
 
-encoinsInValue :: V1.EncoinsParams -> Value -> [BuiltinByteString]
+encoinsInValue :: EncoinsProtocolParams -> Value -> [BuiltinByteString]
 encoinsInValue = V1.encoinsInValue
 
 --------------------------------------- ENCOINS Stake Validator ----------------------------------------
 
 -- Stake owner currency symbol
-type EncoinsStakeParams = V1.EncoinsStakeParams
+type EncoinsStakeValidatorParams = V1.EncoinsStakeValidatorParams
 
-encoinsStakeValidatorCheck :: V1.EncoinsStakeParams -> () -> ScriptContext -> Bool
+encoinsStakeValidatorCheck :: EncoinsStakeValidatorParams -> () -> ScriptContext -> Bool
 encoinsStakeValidatorCheck = V1.encoinsStakeValidatorCheck
 
-encoinsStakeValidator :: V1.EncoinsStakeParams -> StakeValidator
+encoinsStakeValidator :: EncoinsProtocolParams -> StakeValidator
 encoinsStakeValidator = V1.encoinsStakeValidator
 
-encoinsStakeValidatorV :: V1.EncoinsStakeParams -> Versioned StakeValidator
+encoinsStakeValidatorV :: EncoinsProtocolParams -> Versioned StakeValidator
 encoinsStakeValidatorV = V1.encoinsStakeValidatorV
 
-encoinsStakeValidatorHash :: V1.EncoinsStakeParams -> StakeValidatorHash
+encoinsStakeValidatorHash :: EncoinsProtocolParams -> StakeValidatorHash
 encoinsStakeValidatorHash = V1.encoinsStakeValidatorHash
 
 ------------------------------------- ENCOINS Ledger Validator --------------------------------------
 
 -- ENCOINS currency symbol
-type EncoinsLedgerParams = V1.EncoinsLedgerParams
+type EncoinsLedgerValidatorParams = V1.EncoinsLedgerValidatorParams
 
-ledgerValidatorCheck :: V1.EncoinsLedgerParams -> () -> () -> ScriptContext -> Bool
+ledgerValidatorCheck :: EncoinsLedgerValidatorParams -> () -> () -> ScriptContext -> Bool
 ledgerValidatorCheck = V1.ledgerValidatorCheck
 
-ledgerValidator :: V1.EncoinsLedgerParams -> Validator
+ledgerValidator :: EncoinsProtocolParams -> Validator
 ledgerValidator = V1.ledgerValidator
 
-ledgerValidatorV :: V1.EncoinsLedgerParams -> Versioned Validator
+ledgerValidatorV :: EncoinsProtocolParams -> Versioned Validator
 ledgerValidatorV = V1.ledgerValidatorV
 
-ledgerValidatorHash :: V1.EncoinsLedgerParams -> ValidatorHash
+ledgerValidatorHash :: EncoinsProtocolParams -> ValidatorHash
 ledgerValidatorHash = V1.ledgerValidatorHash
 
-type EncoinsSpendParams = V1.EncoinsSpendParams
-
-ledgerValidatorAddress :: V1.EncoinsSpendParams -> Address
+ledgerValidatorAddress :: EncoinsProtocolParams -> Address
 ledgerValidatorAddress = V1.ledgerValidatorAddress

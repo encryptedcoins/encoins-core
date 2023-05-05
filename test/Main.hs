@@ -51,19 +51,16 @@ mkSchema (Map entries) = "{\"map\": [" ++ lst ++ "]}"
         lst = intercalate ", " (zipWith mkEntry ks vs)
 mkSchema (Constr n dats) = "{ \"constructor\": " ++ show n ++ ", \"fields\": [" ++ lst ++ "]}"
     where lst = intercalate ", " (map mkSchema dats)
-
-verifierPKH ::BuiltinByteString
-verifierPKH = toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC9365419D3446BD5A4DCDE19396AAC68070977D"
-
+    
 main :: IO ()
 main = do
-    let stakeOwnerSymb = beaconCurrencySymbol $
-            TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "53cafd08c8f309d0fbdff986b65dfbe9008f1d6658eed48d736d89c4a2e522a2") 0
-        beaconSymb     = beaconCurrencySymbol $
-            TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "961c9f01189852e298e46c3e48bb63616a7ddaa05210fd13af06f95f1db99fc2") 0
-        encoinsPar     = (beaconSymb, verifierPKH)
+    let encoinsPar     = (
+                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "53cafd08c8f309d0fbdff986b65dfbe9008f1d6658eed48d736d89c4a2e522a2") 0,
+                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "961c9f01189852e298e46c3e48bb63616a7ddaa05210fd13af06f95f1db99fc2") 0,
+                toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC9365419D3446BD5A4DCDE19396AAC68070977D"
+            )
         encoinsSymb    = encoinsSymbol encoinsPar
-        ledgerAddr     = ledgerValidatorAddress (encoinsSymb, stakeOwnerSymb)
+        ledgerAddr     = ledgerValidatorAddress encoinsPar
 
     -- Writing a new bulletproof setup to JSON
     bulletproofSetup <- randomIO :: IO BulletproofSetup
