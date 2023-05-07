@@ -22,6 +22,9 @@ import           PlutusAppsExtra.Scripts.OneShotCurrency   (OneShotCurrencyParam
 
 type EncoinsProtocolParams = V1.EncoinsProtocolParams
 
+minAdaTxOutInLedger :: Integer
+minAdaTxOutInLedger = V1.minAdaTxOutInLedger
+
 ---------------------------- Stake Owner Token Minting Policy --------------------------------------
 
 {-# INLINABLE stakeOwnerTokenName #-}

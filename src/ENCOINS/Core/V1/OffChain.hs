@@ -19,9 +19,9 @@ import           Data.Bool                                (bool)
 import           Data.Functor                             (($>), (<$>))
 import           Data.Text                                (pack)
 import           GHC.Generics                             (Generic)
-import           Ledger                                   (DecoratedTxOut (..), _decoratedTxOutAddress, maxMinAdaTxOut)
+import           Ledger                                   (DecoratedTxOut (..), _decoratedTxOutAddress, maxMinAdaTxOut, noAdaValue)
 import           Ledger.Ada                               (lovelaceValueOf, toValue)
-import           Ledger.Value                             (adaOnlyValue, geq, gt)
+import           Ledger.Value                             (adaOnlyValue, geq, gt, flattenValue)
 import           Plutus.V2.Ledger.Api                     hiding (singleton)
 import           PlutusTx.Prelude                         hiding (mapM, (<$>), (<>))
 import           Prelude                                  (show, (<>))
@@ -36,7 +36,7 @@ import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorA
 import           PlutusAppsExtra.Scripts.OneShotCurrency  (oneShotCurrencyMintTx)
 import           PlutusAppsExtra.Types.Tx                 (TransactionBuilder, TxConstructor (..))
 import           PlutusAppsExtra.Utils.Datum              (hashedUnit, inlinedUnit)
-import           PlutusAppsExtra.Utils.Value              (isCurrencyAndAdaOnlyValue)
+import           PlutusAppsExtra.Utils.Value              (unflattenValue, isCurrencyAndAdaOnlyValue)
 
 data EncoinsMode = WalletMode | LedgerMode
     deriving (Haskell.Show, Haskell.Read, Haskell.Eq, Generic, FromJSON, ToJSON)
@@ -84,7 +84,7 @@ postEncoinsPolicyTx par salt = postMintingPolicyTx (alwaysFalseValidatorAddress 
 postLedgerValidatorTx :: EncoinsProtocolParams -> Integer -> TransactionBuilder ()
 postLedgerValidatorTx par salt = postValidatorTx (alwaysFalseValidatorAddress salt) (ledgerValidatorV par) (Just inlinedUnit) zero
 
---------------------------------------- UTXO Spending --------------------------------------------
+--------------------------------------- UTXO Spend and Produce --------------------------------------------
 
 walletSpendTx' :: Value -> TransactionBuilder (Maybe Value)
 walletSpendTx' val =
@@ -119,6 +119,17 @@ ledgerSpendTx par val = do
             failTx "ledgerSpendTx" ("Cannot find a suitable utxo to spend. UTXOs: " <> pack (show utxos)) res
         else return res
 
+ledgerProduceTx :: EncoinsProtocolParams -> Value -> TransactionBuilder Value
+ledgerProduceTx par val =
+    let noAdaVal = noAdaValue val
+        valChunk = unflattenValue $ take 5 $ flattenValue noAdaVal
+    in if noAdaVal == valChunk
+        then utxoProducedTx (ledgerValidatorAddress par) val (Just inlinedUnit) $> zero
+        else do
+            let val' = valChunk + lovelaceValueOf minAdaTxOutInLedger
+            utxoProducedTx (ledgerValidatorAddress par) val' (Just inlinedUnit)
+            ledgerProduceTx par (val - val')
+
 ------------------------------------- ENCOINS Smart Contract -----------------------------------------
 
 -- Returns value spent from the ENCOINS Ledger.
@@ -141,7 +152,7 @@ encoinsBurnTx par bss mode = do
 -- Modify the value locked in the ENCOINS Ledger script by the given value
 ledgerModifyTx :: EncoinsProtocolParams -> Value -> TransactionBuilder ()
 ledgerModifyTx par val
-    | adaOnlyValue val `geq` toValue maxMinAdaTxOut = utxoProducedTx (ledgerValidatorAddress par) val (Just inlinedUnit)
+    | adaOnlyValue val `geq` toValue maxMinAdaTxOut = ledgerProduceTx par val $> ()
     | otherwise     = do
         let valAda = toValue maxMinAdaTxOut - adaOnlyValue val
         -- TODO: Spend several utxo to get the required value
@@ -151,7 +162,7 @@ ledgerModifyTx par val
         val'' <- fromMaybe zero <$> ledgerSpendTx' par zero
         if val' `gt` zero
             then ledgerModifyTx par (val + val' + val'')
-            else failTx "ledgerModifyTx" "Cannot modify the value in the ENCOINS Ledger" Nothing $> ()
+            else failTx "ledgerModifyTx" ("Cannot modify the value in the ENCOINS Ledger: " <> pack (show val)) Nothing $> ()
 
 encoinsTx :: (Address, Address) -> EncoinsProtocolParams -> EncoinsRedeemerOnChain -> EncoinsMode -> TransactionBuilder ()
 encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr), (v, inputs), _, _) mode = do

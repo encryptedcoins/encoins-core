@@ -21,10 +21,10 @@
 
 module ENCOINS.Core.V1.OnChain where
 
-import           Ledger.Ada                                (lovelaceValueOf)
+import           Ledger.Ada                                (lovelaceValueOf, getLovelace, fromValue)
 import           Ledger.Tokens                             (token)
 import           Ledger.Typed.Scripts                      (IsScriptContext(..), Versioned (..), Language (..))
-import           Ledger.Value                              (AssetClass (..), geq)
+import           Ledger.Value                              (AssetClass (..), geq, flattenValue)
 import           Plutus.Script.Utils.V2.Scripts            (validatorHash, scriptCurrencySymbol, stakeValidatorHash)
 import           Plutus.V2.Ledger.Api
 import           PlutusTx                                  (compile, applyCode, liftCode)
@@ -34,7 +34,7 @@ import           PlutusTx.Prelude
 import           ENCOINS.Bulletproofs                      (Proof, polarityToInteger)
 import           ENCOINS.BaseTypes                         (MintingPolarity)
 import           ENCOINS.Orphans                           ()
-import           PlutusAppsExtra.Constraints.OnChain       (tokensMinted, filterUtxoSpent, utxoReferenced, utxoProduced, findUtxoProduced, utxoSpent)
+import           PlutusAppsExtra.Constraints.OnChain       (tokensMinted, filterUtxoSpent, utxoReferenced, utxoProduced, utxoSpent, filterUtxoProduced)
 import           PlutusAppsExtra.Scripts.OneShotCurrency   (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
 import           PlutusAppsExtra.Utils.Datum
 import           PlutusAppsExtra.Utils.Orphans             ()
@@ -42,6 +42,9 @@ import           PlutusTx.Extra.ByteString                 (ToBuiltinByteString(
 
 -- StakeOwner reference, Beacon reference, verifierPKH
 type EncoinsProtocolParams = (TxOutRef, TxOutRef, BuiltinByteString)
+
+minAdaTxOutInLedger :: Integer
+minAdaTxOutInLedger = 1_500_000
 
 ---------------------------- Stake Owner Token Minting Policy --------------------------------------
 
@@ -115,7 +118,6 @@ encoinName :: BuiltinByteString -> TokenName
 encoinName = TokenName
 
 -- TODO: remove on-chain sorting (requires sorting inputs and proof components)
--- TODO: add constraints on the tokens in the produced Ledger utxo
 encoinsPolicyCheck :: EncoinsPolicyParams -> EncoinsRedeemerOnChain -> ScriptContext -> Bool
 encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr), (v, inputs), _, sig)
     ctx@ScriptContext{scriptContextTxInfo=info} =
@@ -124,6 +126,8 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr), (v, inpu
       && cond2
       && cond3
       && (cond4 || cond5)
+      && cond6
+      && cond7
   where
       val   = lovelaceValueOf (v * 1_000_000)
 
@@ -133,11 +137,21 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr), (v, inpu
       cond3 = utxoReferenced info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` beacon)
 
       vMint = txInfoMint $ scriptContextTxInfo ctx
-      vOut  = sum $ map txOutValue $ filterUtxoSpent info (\o -> txOutAddress o == ledgerAddr)
-      vIn   = maybe zero txOutValue $ findUtxoProduced info (\o -> txOutAddress o == ledgerAddr && isInlineUnit (txOutDatum o))
+      vOuts = map txOutValue $ filterUtxoSpent info (\o -> txOutAddress o == ledgerAddr)
+      vOut  = sum vOuts
+      vIns  = map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == ledgerAddr && isInlineUnit (txOutDatum o))
+      vIn   = sum vIns
 
       cond4 = vIn == (vOut + val)         -- Wallet Mode
       cond5 = vIn == (vOut + vMint + val) -- Ledger Mode
+
+      -- TxOuts size limit
+      txOutSize = sort $ map (length . flattenValue) vIns
+      cond6 = null vIns || (all (6 ==) (tail txOutSize) && (head txOutSize <= 6))
+
+      -- ADA value is concentrated in a single TxOut
+      adaVals   = sortBy (flip compare) $ map (getLovelace . fromValue) vIns
+      cond7 = null vIns || all (minAdaTxOutInLedger ==) (tail adaVals)
 
 toEncoinsPolicyParams :: EncoinsProtocolParams -> EncoinsPolicyParams
 toEncoinsPolicyParams par@(_, _, verifierPKH) = (beaconToken par, verifierPKH)
@@ -213,4 +227,3 @@ ledgerValidatorAddress par =
     in Address
     (ScriptCredential (ledgerValidatorHash par))
     (Just $ StakingHash $ ScriptCredential $ ValidatorHash vh)
-        
