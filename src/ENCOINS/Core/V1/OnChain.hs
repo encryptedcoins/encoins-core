@@ -101,12 +101,14 @@ type EncoinsPolicyParams = (Value, BuiltinByteString)
 -- Ledger and change addresses
 type TxParams = (Address, Address)
 type EncoinsInput = (Integer, [(BuiltinByteString, MintingPolarity)])
+type ProofHash = BuiltinByteString
 type ProofSignature = BuiltinByteString
 type EncoinsRedeemer = (TxParams, EncoinsInput, Proof, ProofSignature)
+type EncoinsRedeemerOnChain = (TxParams, EncoinsInput, ProofHash, ProofSignature)
 
-hashRedeemer :: EncoinsRedeemer -> BuiltinByteString
-hashRedeemer ((ledgerAddr, changeAddr), (v, inputs), proof, _) =
-    sha2_256 $ toBytes ledgerAddr `appendByteString` toBytes changeAddr `appendByteString` toBytes (v, inputs) `appendByteString` toBytes proof
+hashRedeemer :: EncoinsRedeemerOnChain -> BuiltinByteString
+hashRedeemer ((ledgerAddr, changeAddr), (v, inputs), proofHash, _) =
+    sha2_256 $ toBytes ledgerAddr `appendByteString` toBytes changeAddr `appendByteString` toBytes (v, inputs) `appendByteString` proofHash
 
 {-# INLINABLE encoinName #-}
 encoinName :: BuiltinByteString -> TokenName
@@ -114,7 +116,7 @@ encoinName = TokenName
 
 -- TODO: remove on-chain sorting (requires sorting inputs and proof components)
 -- TODO: add constraints on the tokens in the produced Ledger utxo
-encoinsPolicyCheck :: EncoinsPolicyParams -> EncoinsRedeemer -> ScriptContext -> Bool
+encoinsPolicyCheck :: EncoinsPolicyParams -> EncoinsRedeemerOnChain -> ScriptContext -> Bool
 encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr), (v, inputs), _, sig)
     ctx@ScriptContext{scriptContextTxInfo=info} =
       cond0

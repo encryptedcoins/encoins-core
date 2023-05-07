@@ -79,17 +79,19 @@ type EncoinsPolicyParams = V1.EncoinsPolicyParams
 
 type TxParams = V1.TxParams
 type EncoinsInput = V1.EncoinsInput
+type ProofHash = V1.ProofHash
 type ProofSignature = V1.ProofSignature
 type EncoinsRedeemer = V1.EncoinsRedeemer
+type EncoinsRedeemerOnChain = V1.EncoinsRedeemerOnChain
 
-hashRedeemer :: EncoinsRedeemer -> BuiltinByteString
+hashRedeemer :: EncoinsRedeemerOnChain -> BuiltinByteString
 hashRedeemer = V1.hashRedeemer
 
 {-# INLINABLE encoinName #-}
 encoinName :: BuiltinByteString -> TokenName
 encoinName = V1.encoinName
 
-encoinsPolicyCheck :: EncoinsPolicyParams -> EncoinsRedeemer -> ScriptContext -> Bool
+encoinsPolicyCheck :: EncoinsPolicyParams -> EncoinsRedeemerOnChain -> ScriptContext -> Bool
 encoinsPolicyCheck = V1.encoinsPolicyCheck
 
 toEncoinsPolicyParams :: EncoinsProtocolParams -> EncoinsPolicyParams

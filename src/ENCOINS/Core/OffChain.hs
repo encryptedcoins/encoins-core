@@ -73,5 +73,5 @@ encoinsBurnTx = V1.encoinsBurnTx
 ledgerModifyTx :: EncoinsProtocolParams -> Value -> TransactionBuilder ()
 ledgerModifyTx = V1.ledgerModifyTx
 
-encoinsTx :: (Address, Address) -> EncoinsProtocolParams -> EncoinsRedeemer -> EncoinsMode -> TransactionBuilder ()
+encoinsTx :: (Address, Address) -> EncoinsProtocolParams -> EncoinsRedeemerOnChain -> EncoinsMode -> TransactionBuilder ()
 encoinsTx = V1.encoinsTx

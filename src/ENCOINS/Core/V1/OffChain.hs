@@ -153,7 +153,7 @@ ledgerModifyTx par val
             then ledgerModifyTx par (val + val' + val'')
             else failTx "ledgerModifyTx" "Cannot modify the value in the ENCOINS Ledger" Nothing $> ()
 
-encoinsTx :: (Address, Address) -> EncoinsProtocolParams -> EncoinsRedeemer -> EncoinsMode -> TransactionBuilder ()
+encoinsTx :: (Address, Address) -> EncoinsProtocolParams -> EncoinsRedeemerOnChain -> EncoinsMode -> TransactionBuilder ()
 encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr), (v, inputs), _, _) mode = do
     -- Checking that the ENCOINS Ledger address is correct
     when (ledgerAddr /= ledgerValidatorAddress par)
