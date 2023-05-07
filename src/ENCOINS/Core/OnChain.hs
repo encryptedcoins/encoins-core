@@ -83,7 +83,7 @@ type ProofSignature = V1.ProofSignature
 type EncoinsRedeemer = V1.EncoinsRedeemer
 
 hashRedeemer :: EncoinsRedeemer -> BuiltinByteString
-hashRedeemer = hashRedeemer
+hashRedeemer = V1.hashRedeemer
 
 {-# INLINABLE encoinName #-}
 encoinName :: BuiltinByteString -> TokenName
