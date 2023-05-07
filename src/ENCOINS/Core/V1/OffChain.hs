@@ -19,8 +19,8 @@ import           Data.Bool                                (bool)
 import           Data.Functor                             (($>), (<$>))
 import           Data.Text                                (pack)
 import           GHC.Generics                             (Generic)
-import           Ledger                                   (DecoratedTxOut (..), _decoratedTxOutAddress, maxMinAdaTxOut, noAdaValue)
-import           Ledger.Ada                               (lovelaceValueOf, toValue)
+import           Ledger                                   (DecoratedTxOut (..), _decoratedTxOutAddress, noAdaValue)
+import           Ledger.Ada                               (lovelaceValueOf)
 import           Ledger.Value                             (adaOnlyValue, geq, gt, flattenValue)
 import           Plutus.V2.Ledger.Api                     hiding (singleton)
 import           PlutusTx.Prelude                         hiding (mapM, (<$>), (<>))
@@ -152,9 +152,9 @@ encoinsBurnTx par bss mode = do
 -- Modify the value locked in the ENCOINS Ledger script by the given value
 ledgerModifyTx :: EncoinsProtocolParams -> Value -> TransactionBuilder ()
 ledgerModifyTx par val
-    | adaOnlyValue val `geq` toValue maxMinAdaTxOut = ledgerProduceTx par val $> ()
+    | adaOnlyValue val `geq` lovelaceValueOf minAdaTxOutInLedger = ledgerProduceTx par val $> ()
     | otherwise     = do
-        let valAda = toValue maxMinAdaTxOut - adaOnlyValue val
+        let valAda = lovelaceValueOf minAdaTxOutInLedger - adaOnlyValue val
         -- TODO: Spend several utxo to get the required value
         -- TODO: Randomize the selection process
         val'  <- fromMaybe zero <$> ledgerSpendTx par valAda
