@@ -21,6 +21,7 @@
 
 module ENCOINS.Core.V1.OnChain where
 
+import           Data.Maybe                                (fromJust)
 import           Ledger.Ada                                (lovelaceValueOf, getLovelace, fromValue)
 import           Ledger.Tokens                             (token)
 import           Ledger.Typed.Scripts                      (IsScriptContext(..), Versioned (..), Language (..))
@@ -30,6 +31,7 @@ import           Plutus.V2.Ledger.Api
 import           PlutusTx                                  (compile, applyCode, liftCode)
 import           PlutusTx.AssocMap                         (lookup, keys, member)
 import           PlutusTx.Prelude
+import           Text.Hex                                  (decodeHex)
 
 import           ENCOINS.Bulletproofs                      (Proof, polarityToInteger)
 import           ENCOINS.BaseTypes                         (MintingPolarity)
@@ -222,8 +224,15 @@ ledgerValidatorHash :: EncoinsProtocolParams -> ValidatorHash
 ledgerValidatorHash = validatorHash . ledgerValidator
 
 ledgerValidatorAddress :: EncoinsProtocolParams -> Address
-ledgerValidatorAddress par =
-    let StakeValidatorHash vh = encoinsStakeValidatorHash par
-    in Address
+ledgerValidatorAddress par = Address
     (ScriptCredential (ledgerValidatorHash par))
-    (Just $ StakingHash $ ScriptCredential $ ValidatorHash vh)
+    (Just $ StakingHash $ PubKeyCredential $ PubKeyHash $
+        toBuiltin $ fromJust $ decodeHex "e03c2c08be107291be8d71bbb32da11f3b9761b0991f2a6f6940f4f390")
+
+-- TODO: implement stake validator off-chain logic
+-- ledgerValidatorAddress :: EncoinsProtocolParams -> Address
+-- ledgerValidatorAddress par =
+--     let StakeValidatorHash vh = encoinsStakeValidatorHash par
+--     in Address
+--     (ScriptCredential (ledgerValidatorHash par))    
+--     (Just $ StakingHash $ ScriptCredential $ ValidatorHash vh)
