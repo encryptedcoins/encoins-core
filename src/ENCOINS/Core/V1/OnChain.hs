@@ -227,7 +227,7 @@ ledgerValidatorAddress :: EncoinsProtocolParams -> Address
 ledgerValidatorAddress par = Address
     (ScriptCredential (ledgerValidatorHash par))
     (Just $ StakingHash $ PubKeyCredential $ PubKeyHash $
-        toBuiltin $ fromJust $ decodeHex "e03c2c08be107291be8d71bbb32da11f3b9761b0991f2a6f6940f4f390")
+        toBuiltin $ fromJust $ decodeHex "3c2c08be107291be8d71bbb32da11f3b9761b0991f2a6f6940f4f390")
 
 -- TODO: implement stake validator off-chain logic
 -- ledgerValidatorAddress :: EncoinsProtocolParams -> Address
