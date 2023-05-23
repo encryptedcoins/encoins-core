@@ -103,8 +103,8 @@ beaconToken = token . beaconAssetClass
 -- Beacon token and verifierPKH
 type EncoinsPolicyParams = (Value, BuiltinByteString)
 
--- Ledger and change addresses
-type TxParams = (Address, Address)
+-- Ledger address, change addresses, total fees
+type TxParams = (Address, Address, Integer)
 type EncoinsInput = (Integer, [(BuiltinByteString, MintingPolarity)])
 type ProofHash = BuiltinByteString
 type ProofSignature = BuiltinByteString
@@ -112,8 +112,8 @@ type EncoinsRedeemer = (TxParams, EncoinsInput, Proof, ProofSignature)
 type EncoinsRedeemerOnChain = (TxParams, EncoinsInput, ProofHash, ProofSignature)
 
 hashRedeemer :: EncoinsRedeemerOnChain -> BuiltinByteString
-hashRedeemer ((ledgerAddr, changeAddr), (v, inputs), proofHash, _) =
-    sha2_256 $ toBytes ledgerAddr `appendByteString` toBytes changeAddr `appendByteString` toBytes (v, inputs) `appendByteString` proofHash
+hashRedeemer ((_, changeAddr, fees), (v, inputs), proofHash, _) =
+    sha2_256 $ toBytes changeAddr `appendByteString` toBytes fees `appendByteString` toBytes (v, inputs) `appendByteString` proofHash
 
 {-# INLINABLE encoinName #-}
 encoinName :: BuiltinByteString -> TokenName
@@ -121,7 +121,7 @@ encoinName = TokenName
 
 -- TODO: remove on-chain sorting (requires sorting inputs and proof components)
 encoinsPolicyCheck :: EncoinsPolicyParams -> EncoinsRedeemerOnChain -> ScriptContext -> Bool
-encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr), (v, inputs), _, sig)
+encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v, inputs), _, sig)
     ctx@ScriptContext{scriptContextTxInfo=info} =
       cond0
       && cond1
@@ -131,11 +131,12 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr), (v, inpu
       && cond6
       && cond7
   where
-      val   = lovelaceValueOf (v * 1_000_000)
+      val     = lovelaceValueOf (v * 1_000_000)
+      valFees = lovelaceValueOf (fees * 1_000_000)
 
       cond0 = tokensMinted ctx $ fromList $ sort $ map (\(bs, p) -> (encoinName bs, polarityToInteger p)) inputs
       cond1 = verifyEd25519Signature verifierPKH (hashRedeemer red) sig
-      cond2 = utxoProduced info (\o -> txOutAddress o == changeAddr && txOutValue o `geq` (zero-val))
+      cond2 = utxoProduced info (\o -> txOutAddress o == changeAddr && txOutValue o `geq` (zero - val - valFees))
       cond3 = utxoReferenced info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` beacon)
 
       vMint = txInfoMint $ scriptContextTxInfo ctx

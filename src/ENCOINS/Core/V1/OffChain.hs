@@ -1,6 +1,4 @@
 {-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE DeriveAnyClass        #-}
-{-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE DerivingStrategies    #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -14,43 +12,36 @@
 module ENCOINS.Core.V1.OffChain where
 
 import           Control.Monad.State                      (gets, when)
-import           Data.Aeson                               (FromJSON, ToJSON)
 import           Data.Bool                                (bool)
 import           Data.Functor                             (($>), (<$>))
 import           Data.Text                                (pack)
-import           GHC.Generics                             (Generic)
 import           Ledger                                   (DecoratedTxOut (..), _decoratedTxOutAddress, noAdaValue)
 import           Ledger.Ada                               (lovelaceValueOf)
 import           Ledger.Value                             (adaOnlyValue, geq, gt, flattenValue)
 import           Plutus.V2.Ledger.Api                     hiding (singleton)
+import           PlutusTx.Extra.ByteString                (toBytes)
 import           PlutusTx.Prelude                         hiding (mapM, (<$>), (<>))
 import           Prelude                                  (show, (<>))
-import qualified Prelude                                  as Haskell
 import           Text.Hex                                 (encodeHex)
 
 import           ENCOINS.BaseTypes                        (MintingPolarity (..))
 import           ENCOINS.Bulletproofs                     (polarityToInteger)
+import           ENCOINS.Core.V1.OffChain.Fees            (protocolFeeValue, protocolFee)
+import           ENCOINS.Core.V1.OffChain.Modes           (EncoinsMode(..))
 import           ENCOINS.Core.V1.OnChain
 import           PlutusAppsExtra.Constraints.OffChain
 import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
 import           PlutusAppsExtra.Scripts.OneShotCurrency  (oneShotCurrencyMintTx)
 import           PlutusAppsExtra.Types.Tx                 (TransactionBuilder, TxConstructor (..))
+import           PlutusAppsExtra.Utils.Crypto             (sign)
 import           PlutusAppsExtra.Utils.Datum              (hashedUnit, inlinedUnit)
 import           PlutusAppsExtra.Utils.Value              (unflattenValue, isCurrencyAndAdaOnlyValue)
 
-data EncoinsMode = WalletMode | LedgerMode
-    deriving (Haskell.Show, Haskell.Read, Haskell.Eq, Generic, FromJSON, ToJSON)
-
-instance Eq EncoinsMode where
-    (==) = (Haskell.==)
-
-protocolFee :: Integer -> EncoinsMode -> Value
-protocolFee n mode
-    | n < 0 || mode == LedgerMode = lovelaceValueOf $ max f $ (negate n * 1_000_000) `divide` 200
-    | otherwise                   = zero
-    where f = case mode of
-            WalletMode -> 1_500_000
-            LedgerMode -> 2_000_000
+mkEncoinsRedeemerOnChain :: BuiltinByteString -> EncoinsRedeemer -> EncoinsRedeemerOnChain
+mkEncoinsRedeemerOnChain prvKey (par, input, proof, _) =
+    let proofHash  = sha2_256 $ toBytes proof
+        redOnChain = (par, input, proofHash, "")
+    in (par, input, proofHash, sign prvKey $ hashRedeemer redOnChain)
 
 ---------------------------- Stake Owner Token Minting Policy --------------------------------------
 
@@ -165,10 +156,12 @@ ledgerModifyTx par val
             else failTx "ledgerModifyTx" ("Cannot modify the value in the ENCOINS Ledger: " <> pack (show val)) Nothing $> ()
 
 encoinsTx :: (Address, Address) -> EncoinsProtocolParams -> EncoinsRedeemerOnChain -> EncoinsMode -> TransactionBuilder ()
-encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr), (v, inputs), _, _) mode = do
+encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v, inputs), _, _) mode = do
     -- Checking that the ENCOINS Ledger address is correct
     when (ledgerAddr /= ledgerValidatorAddress par)
         $ failTx "encoinsTx" "ENCOINS Ledger address in the redeemer is not correct" Nothing $> ()
+    when (fees /= 2 * protocolFee mode v)
+        $ failTx "encoinsTx" "The fees are not correct" Nothing $> ()
 
     -- Spending utxos with encoins to burn
     let encoinsToBurn = filter (\(_, p) -> p == Burn) inputs
@@ -189,7 +182,7 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr), (v, input
 
     -- Paying fees and withdrawing
     when (v < 0) $ do
-        utxoProducedTx addrRelay    (protocolFee v mode) (Just inlinedUnit)
-        utxoProducedTx addrTreasury (protocolFee v mode) (Just inlinedUnit)
+        utxoProducedTx addrRelay    (protocolFeeValue mode v) (Just inlinedUnit)
+        utxoProducedTx addrTreasury (protocolFeeValue mode v) (Just inlinedUnit)
         -- NOTE: withdrawing to a Plutus Script address is not possible
         utxoProducedTx changeAddr   valWithdraw          Nothing

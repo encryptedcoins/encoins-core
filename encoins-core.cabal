@@ -34,6 +34,8 @@ library
       ENCOINS.Core.OnChain
       ENCOINS.Core.V1.OffChain
       ENCOINS.Core.V1.OffChain.ENCS
+      ENCOINS.Core.V1.OffChain.Fees
+      ENCOINS.Core.V1.OffChain.Modes
       ENCOINS.Core.V1.OnChain
     build-depends:
       base                          >= 4.9 && < 5,
