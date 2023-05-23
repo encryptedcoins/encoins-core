@@ -132,7 +132,7 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v
       && cond7
   where
       val     = lovelaceValueOf (v * 1_000_000)
-      valFees = lovelaceValueOf (fees * 1_000_000)
+      valFees = lovelaceValueOf (abs fees * 1_000_000)
 
       cond0 = tokensMinted ctx $ fromList $ sort $ map (\(bs, p) -> (encoinName bs, polarityToInteger p)) inputs
       cond1 = verifyEd25519Signature verifierPKH (hashRedeemer red) sig
