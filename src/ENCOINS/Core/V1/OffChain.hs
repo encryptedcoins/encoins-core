@@ -160,6 +160,7 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
     -- Checking that the ENCOINS Ledger address is correct
     when (ledgerAddr /= ledgerValidatorAddress par)
         $ failTx "encoinsTx" "ENCOINS Ledger address in the redeemer is not correct" Nothing $> ()
+    -- Checking that protocol fees are correct
     when (fees /= 2 * protocolFee mode v)
         $ failTx "encoinsTx" "The fees are not correct" Nothing $> ()
 
@@ -178,11 +179,13 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
     -- Modify ENCOINS Ledger by the given value
     let valWithdraw = negate $ lovelaceValueOf (v * 1_000_000)
         valToLedger = valFromLedger + bool zero valMint (mode == LedgerMode) - valWithdraw
+        valFee      = protocolFeeValue mode v
     ledgerModifyTx par valToLedger
 
     -- Paying fees and withdrawing
     when (v < 0) $ do
-        utxoProducedTx addrRelay    (protocolFeeValue mode v) (Just inlinedUnit)
-        utxoProducedTx addrTreasury (protocolFeeValue mode v) (Just inlinedUnit)
+        utxoProducedTx addrRelay    valFee (Just inlinedUnit)
+        utxoProducedTx addrTreasury valFee (Just inlinedUnit)
         -- NOTE: withdrawing to a Plutus Script address is not possible
-        utxoProducedTx changeAddr   valWithdraw          Nothing
+        when (abs v - fees > 0) $
+            utxoProducedTx changeAddr (valWithdraw - valFee - valFee) Nothing
