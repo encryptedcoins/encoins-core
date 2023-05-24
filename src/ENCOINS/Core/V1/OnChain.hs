@@ -22,6 +22,7 @@
 module ENCOINS.Core.V1.OnChain where
 
 import           Data.Maybe                                (fromJust)
+import           Data.Text                                 (Text)
 import           Ledger.Ada                                (lovelaceValueOf, getLovelace, fromValue)
 import           Ledger.Tokens                             (token)
 import           Ledger.Typed.Scripts                      (IsScriptContext(..), Versioned (..), Language (..))
@@ -40,6 +41,7 @@ import           PlutusAppsExtra.Constraints.OnChain       (tokensMinted, filter
 import           PlutusAppsExtra.Scripts.OneShotCurrency   (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
 import           PlutusAppsExtra.Utils.Datum
 import           PlutusAppsExtra.Utils.Orphans             ()
+import           PlutusAppsExtra.Utils.Scripts             (validatorFromCBOR)
 import           PlutusTx.Extra.ByteString                 (ToBuiltinByteString(..))
 
 -- StakeOwner reference, Beacon reference, verifierPKH
@@ -213,11 +215,17 @@ ledgerValidatorCheck :: EncoinsLedgerValidatorParams -> () -> () -> ScriptContex
 ledgerValidatorCheck encoinsSymb _ _
     ScriptContext{scriptContextTxInfo=info} =  Minting encoinsSymb `member` txInfoRedeemers info
 
+ledgerValidatorCodeAiken :: Text
+ledgerValidatorCodeAiken = "58d30100003232323232323232323232222533300832323233323222330030020013001001222533301100214a0264646464a66602466ebc014004528899980380380180298090019809001180a801980980100100099ba548000cc038dd4a451c8097632a37b0af5f09e4f5812c2acf8cda50caba44776267784c9b48004bd701bab33005300700148048cc010c0180052000149858cc0040052000222233330073370e0020060184666600a00a66e000112002300e001002002230053754002460066ea80055cd2ab9d5573caae7d5d02ba15745"
+
+-- ledgerValidator :: EncoinsProtocolParams -> Validator
+-- ledgerValidator par = mkValidatorScript $
+--     $$(PlutusTx.compile [|| mkUntypedValidator . ledgerValidatorCheck ||])
+--         `PlutusTx.applyCode`
+--             PlutusTx.liftCode (encoinsSymbol par)
+
 ledgerValidator :: EncoinsProtocolParams -> Validator
-ledgerValidator par = mkValidatorScript $
-    $$(PlutusTx.compile [|| mkUntypedValidator . ledgerValidatorCheck ||])
-        `PlutusTx.applyCode`
-            PlutusTx.liftCode (encoinsSymbol par)
+ledgerValidator = const $ fromJust $ validatorFromCBOR ledgerValidatorCodeAiken
 
 ledgerValidatorV :: EncoinsProtocolParams -> Versioned Validator
 ledgerValidatorV = flip Versioned PlutusV2 . ledgerValidator
