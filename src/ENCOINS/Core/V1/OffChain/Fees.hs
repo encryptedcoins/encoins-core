@@ -20,7 +20,7 @@ import           ENCOINS.Core.V1.OffChain.Modes (EncoinsMode(..))
 protocolFeeWalletMode :: Integer -> Integer
 protocolFeeWalletMode v
     | v >= 0    = 0
-    | otherwise = max 1 $ v `divide` 200
+    | otherwise = max 2 $ v `divide` 200
 
 protocolFeeLedgerMode :: Integer -> Integer
 protocolFeeLedgerMode v
