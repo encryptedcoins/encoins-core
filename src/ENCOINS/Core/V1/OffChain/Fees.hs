@@ -20,12 +20,12 @@ import           ENCOINS.Core.V1.OffChain.Modes (EncoinsMode(..))
 protocolFeeWalletMode :: Integer -> Integer
 protocolFeeWalletMode v
     | v >= 0    = 0
-    | otherwise = max 2 $ v `divide` 200
+    | otherwise = max 2 $ negate v `divide` 200
 
 protocolFeeLedgerMode :: Integer -> Integer
 protocolFeeLedgerMode v
     | v >= 0    = 2
-    | otherwise = max 2 $ v `divide` 200
+    | otherwise = max 2 $ negate v `divide` 200
 
 protocolFee :: EncoinsMode -> Integer -> Integer
 protocolFee mode v = case mode of
