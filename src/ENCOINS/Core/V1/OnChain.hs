@@ -131,12 +131,13 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v
       && cond6
       && cond7
   where
+      fees'   = abs fees
       val     = lovelaceValueOf (v * 1_000_000)
-      valFees = lovelaceValueOf (abs fees * 1_000_000)
+      valFees = lovelaceValueOf (fees' * 1_000_000)
 
       cond0 = tokensMinted ctx $ fromList $ sort $ map (\(bs, p) -> (encoinName bs, polarityToInteger p)) inputs
       cond1 = verifyEd25519Signature verifierPKH (hashRedeemer red) sig
-      cond2 = utxoProduced info (\o -> txOutAddress o == changeAddr && txOutValue o `geq` (zero - val - valFees))
+      cond2 = (v + fees' >= 0) || utxoProduced info (\o -> txOutAddress o == changeAddr && txOutValue o `geq` (zero - val - valFees))
       cond3 = utxoReferenced info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` beacon)
 
       vMint = txInfoMint $ scriptContextTxInfo ctx
