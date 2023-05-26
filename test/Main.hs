@@ -54,8 +54,8 @@ mkSchema (Constr n dats) = "{ \"constructor\": " ++ show n ++ ", \"fields\": [" 
 main :: IO ()
 main = do
     let encoinsPar     = (
-                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "274f23b63b921eabd62c2701eb2ca3fddf69644f1bb34d1b4ba6eee7290e8681") 4,
-                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "5e2012679f0a7ad74ac9c50de1861175653675db68807ec6d608cb949399ec20") 6,
+                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "274f23b63b921eabd62c2701eb2ca3fddf69644f1bb34d1b4ba6eee7290e8681") 3,
+                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "5e2012679f0a7ad74ac9c50de1861175653675db68807ec6d608cb949399ec20") 8,
                 toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC9365419D3446BD5A4DCDE19396AAC68070977D"
             )
         encoinsSymb    = encoinsSymbol encoinsPar
@@ -66,8 +66,10 @@ main = do
     writeFileJSON "result/bulletproof_setup.json" bulletproofSetup
     -- Printing ENCOINS minting policy parameters
     writeFileJSON "result/encoinsPolicyParameters.json" $ toEncoinsPolicyParams encoinsPar
-    -- Writing current currency symbol to JSON
+    -- Writing ENCOINS currency symbol to JSON
     writeFileJSON "result/encoinsPolicyId.json" $ toJSON encoinsSymb
+    -- Writing ENCOINS minting policy to JSON
+    writeFileJSON "result/encoinsPolicy.json" $ toJSON $ encoinsPolicy encoinsPar
     -- Writing current staking address to JSON
     writeFileJSON "result/ledgerAddr.json" $ toJSON ledgerAddr
 

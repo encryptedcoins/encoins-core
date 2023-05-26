@@ -25,11 +25,13 @@ import           Data.Maybe                                (fromJust)
 import           Ledger.Ada                                (lovelaceValueOf, getLovelace, fromValue)
 import           Ledger.Tokens                             (token)
 import           Ledger.Typed.Scripts                      (IsScriptContext(..), Versioned (..), Language (..))
-import           Ledger.Value                              (AssetClass (..), geq, flattenValue)
+import           Ledger.Value                              (AssetClass (..), geq, flattenValue, noAdaValue, symbols)
+import           Plutus.Script.Utils.V2.Contexts           (ownCurrencySymbol)
 import           Plutus.Script.Utils.V2.Scripts            (validatorHash, scriptCurrencySymbol, stakeValidatorHash)
 import           Plutus.V2.Ledger.Api
 import           PlutusTx                                  (compile, applyCode, liftCode)
 import           PlutusTx.AssocMap                         (lookup, keys, member)
+import           PlutusTx.Builtins                         (serialiseData)
 import           PlutusTx.Prelude
 import           Text.Hex                                  (decodeHex)
 
@@ -40,7 +42,6 @@ import           PlutusAppsExtra.Constraints.OnChain       (tokensMinted, filter
 import           PlutusAppsExtra.Scripts.OneShotCurrency   (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
 import           PlutusAppsExtra.Utils.Datum
 import           PlutusAppsExtra.Utils.Orphans             ()
-import           PlutusTx.Extra.ByteString                 (ToBuiltinByteString(..))
 
 -- StakeOwner reference, Beacon reference, verifierPKH
 type EncoinsProtocolParams = (TxOutRef, TxOutRef, BuiltinByteString)
@@ -112,8 +113,10 @@ type EncoinsRedeemer = (TxParams, EncoinsInput, Proof, ProofSignature)
 type EncoinsRedeemerOnChain = (TxParams, EncoinsInput, ProofHash, ProofSignature)
 
 hashRedeemer :: EncoinsRedeemerOnChain -> BuiltinByteString
-hashRedeemer ((_, changeAddr, fees), (v, inputs), proofHash, _) =
-    sha2_256 $ toBytes changeAddr `appendByteString` toBytes fees `appendByteString` toBytes (v, inputs) `appendByteString` proofHash
+hashRedeemer = sha2_256 . serialiseData . toBuiltinData
+-- hashRedeemer ((_, changeAddr, fees), (v, inputs), proofHash, _) =
+--     sha2_256 $ toBytes changeAddr `appendByteString` toBytes fees `appendByteString` toBytes (v, inputs) `appendByteString` proofHash
+
 
 {-# INLINABLE encoinName #-}
 encoinName :: BuiltinByteString -> TokenName
@@ -130,6 +133,7 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v
       && (cond4 || cond5)
       && cond6
       && cond7
+      && cond8
   where
       fees'   = abs fees
       val     = lovelaceValueOf (v * 1_000_000)
@@ -156,6 +160,8 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v
       -- ADA value is concentrated in a single TxOut
       adaVals   = sortBy (flip compare) $ map (getLovelace . fromValue) vIns
       cond7 = null vIns || all (minAdaTxOutInLedger ==) (tail adaVals)
+
+      cond8 = symbols (noAdaValue vIn) == [ownCurrencySymbol ctx]
 
 toEncoinsPolicyParams :: EncoinsProtocolParams -> EncoinsPolicyParams
 toEncoinsPolicyParams par@(_, _, verifierPKH) = (beaconToken par, verifierPKH)
