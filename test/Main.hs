@@ -54,8 +54,8 @@ mkSchema (Constr n dats) = "{ \"constructor\": " ++ show n ++ ", \"fields\": [" 
 main :: IO ()
 main = do
     let encoinsPar     = (
-                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "3f65eafc8f22fb704e089165cc33fd8bff808cfbf19bc888c914382336c4294b") 1,
-                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "5e2012679f0a7ad74ac9c50de1861175653675db68807ec6d608cb949399ec20") 12,
+                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "06842b6068981ecff52b3bdd91e5b57d330b1831f556937599e756a0fec753c7") 1,
+                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "5e2012679f0a7ad74ac9c50de1861175653675db68807ec6d608cb949399ec20") 9,
                 toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC9365419D3446BD5A4DCDE19396AAC68070977D"
             )
         encoinsSymb    = encoinsSymbol encoinsPar
