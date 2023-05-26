@@ -28,7 +28,7 @@ import           ENCOINS.BaseTypes                        (MintingPolarity (..))
 import           ENCOINS.Bulletproofs                     (polarityToInteger)
 import           ENCOINS.Core.V1.OffChain.Fees            (protocolFeeValue, protocolFee)
 import           ENCOINS.Core.V1.OffChain.Modes           (EncoinsMode(..))
-import           ENCOINS.Core.V1.OnChain
+import           ENCOINS.Core.OnChain
 import           PlutusAppsExtra.Constraints.OffChain
 import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
 import           PlutusAppsExtra.Scripts.OneShotCurrency  (oneShotCurrencyMintTx)

@@ -25,16 +25,16 @@ module ENCOINS.Core.OnChain (
     ProofSignature,
     EncoinsRedeemer,
     EncoinsRedeemerOnChain,
-    hashRedeemer,
+    Aiken.hashRedeemer,
     encoinName,
-    encoinsPolicyCheck,
+    Aiken.encoinsPolicyCheck,
     toEncoinsPolicyParams,
-    encoinsPolicy,
-    encoinsPolicyV,
-    encoinsSymbol,
-    encoinsAssetClass,
-    encoin,
-    encoinsInValue,
+    Aiken.encoinsPolicy,
+    Aiken.encoinsPolicyV,
+    Aiken.encoinsSymbol,
+    Aiken.encoinsAssetClass,
+    Aiken.encoin,
+    Aiken.encoinsInValue,
     -- ENCOINS Stake Validator
     EncoinsStakeValidatorParams,
     encoinsStakeValidatorCheck,
@@ -43,11 +43,15 @@ module ENCOINS.Core.OnChain (
     encoinsStakeValidatorHash,
     -- ENCOINS Ledger Validator
     EncoinsLedgerValidatorParams,
-    ledgerValidatorCheck,
-    ledgerValidator,
-    ledgerValidatorV,
-    ledgerValidatorHash,
-    ledgerValidatorAddress
+    Aiken.ledgerValidatorCheck,
+    Aiken.ledgerValidator,
+    Aiken.ledgerValidatorV,
+    Aiken.ledgerValidatorHash,
+    Aiken.ledgerValidatorAddress
 ) where
 
-import           ENCOINS.Core.V1.OnChain
+import           ENCOINS.Core.V1.OnChain.Plutus
+-- import           ENCOINS.Core.V1.OnChain.Aiken
+import qualified ENCOINS.Core.V1.OnChain.Aiken as Aiken
+-- import           ENCOINS.Core.V1.OnChain.Aiken.UPLC
+import qualified ENCOINS.Core.V1.OnChain.Aiken.UPLC as Aiken
