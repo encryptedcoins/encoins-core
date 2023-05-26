@@ -51,7 +51,5 @@ module ENCOINS.Core.OnChain (
 ) where
 
 import           ENCOINS.Core.V1.OnChain.Plutus
--- import           ENCOINS.Core.V1.OnChain.Aiken
 import qualified ENCOINS.Core.V1.OnChain.Aiken as Aiken
--- import           ENCOINS.Core.V1.OnChain.Aiken.UPLC
 import qualified ENCOINS.Core.V1.OnChain.Aiken.UPLC as Aiken

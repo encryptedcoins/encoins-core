@@ -31,7 +31,7 @@ import           Plutus.Script.Utils.V2.Scripts            (validatorHash, scrip
 import           Plutus.V2.Ledger.Api
 import           PlutusTx                                  (compile, applyCode, liftCode)
 import           PlutusTx.AssocMap                         (lookup, keys, member)
-import           PlutusTx.Builtins                         (serialiseData)
+import           PlutusTx.Extra.ByteString                 (toBytes)
 import           PlutusTx.Prelude
 import           Text.Hex                                  (decodeHex)
 
@@ -40,7 +40,7 @@ import           ENCOINS.BaseTypes                         (MintingPolarity)
 import           ENCOINS.Orphans                           ()
 import           PlutusAppsExtra.Constraints.OnChain       (tokensMinted, filterUtxoSpent, utxoReferenced, utxoProduced, utxoSpent, filterUtxoProduced)
 import           PlutusAppsExtra.Scripts.OneShotCurrency   (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
-import           PlutusAppsExtra.Utils.Datum
+import           PlutusAppsExtra.Utils.Datum               (isInlineUnit)
 import           PlutusAppsExtra.Utils.Orphans             ()
 
 -- StakeOwner reference, Beacon reference, verifierPKH
@@ -113,9 +113,8 @@ type EncoinsRedeemer = (TxParams, EncoinsInput, Proof, ProofSignature)
 type EncoinsRedeemerOnChain = (TxParams, EncoinsInput, ProofHash, ProofSignature)
 
 hashRedeemer :: EncoinsRedeemerOnChain -> BuiltinByteString
-hashRedeemer = sha2_256 . serialiseData . toBuiltinData
--- hashRedeemer ((_, changeAddr, fees), (v, inputs), proofHash, _) =
---     sha2_256 $ toBytes changeAddr `appendByteString` toBytes fees `appendByteString` toBytes (v, inputs) `appendByteString` proofHash
+hashRedeemer ((_, changeAddr, fees), (v, inputs), proofHash, _) =
+    sha2_256 $ toBytes changeAddr `appendByteString` toBytes fees `appendByteString` toBytes (v, inputs) `appendByteString` proofHash
 
 
 {-# INLINABLE encoinName #-}

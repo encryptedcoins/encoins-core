@@ -28,7 +28,7 @@ import           PlutusTx.Builtins                  (serialiseData)
 ----------------------------------- ENCOINS Minting Policy ---------------------------------------
 
 hashRedeemer :: EncoinsRedeemerOnChain -> BuiltinByteString
-hashRedeemer = sha2_256 . serialiseData . toBuiltinData
+hashRedeemer (a, b, c, _) = sha2_256 . serialiseData . toBuiltinData $ (a, b, c)
 
 -- encoinsPolicy :: EncoinsProtocolParams -> MintingPolicy
 -- encoinsPolicy = fromJust (parametrizedMintingPolicyFromCBOR encoinsPolicyCheck) . toEncoinsPolicyParams
