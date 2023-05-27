@@ -123,7 +123,7 @@ ledgerProduceTx par val =
 
 ------------------------------------- ENCOINS Smart Contract -----------------------------------------
 
--- Returns value spent from the ENCOINS Ledger.
+-- Returns value spent from the ENCOINS Ledger and the number of outputs spent.
 encoinsBurnTx :: EncoinsProtocolParams -> [BuiltinByteString] -> EncoinsMode -> TransactionBuilder Value
 encoinsBurnTx _   []  _    = return zero
 encoinsBurnTx par bss mode = do
@@ -141,8 +141,8 @@ encoinsBurnTx par bss mode = do
         in (+) (bool zero v (mode == LedgerMode)) <$> encoinsBurnTx par bss' mode
 
 -- Modify the value locked in the ENCOINS Ledger script by the given value
-ledgerModifyTx :: EncoinsProtocolParams -> Value -> TransactionBuilder ()
-ledgerModifyTx par val
+ledgerModifyTx :: EncoinsProtocolParams -> Value -> EncoinsMode -> TransactionBuilder ()
+ledgerModifyTx par val mode
     | adaOnlyValue val `geq` lovelaceValueOf minAdaTxOutInLedger = ledgerProduceTx par val $> ()
     | otherwise     = do
         let valAda = lovelaceValueOf minAdaTxOutInLedger - adaOnlyValue val
@@ -151,8 +151,9 @@ ledgerModifyTx par val
         val'  <- fromMaybe zero <$> ledgerSpendTx par valAda
         -- Spend an additional utxo if possible
         val'' <- fromMaybe zero <$> ledgerSpendTx' par zero
+        let valOptional = bool zero val'' (mode == WalletMode)
         if val' `gt` zero
-            then ledgerModifyTx par (val + val' + val'')
+            then ledgerModifyTx par (val + val' + valOptional) mode
             else failTx "ledgerModifyTx" ("Cannot modify the value in the ENCOINS Ledger: " <> pack (show val)) Nothing $> ()
 
 encoinsTx :: (Address, Address) -> EncoinsProtocolParams -> EncoinsRedeemerOnChain -> EncoinsMode -> TransactionBuilder ()
@@ -180,7 +181,7 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
     let valWithdraw = negate $ lovelaceValueOf (v * 1_000_000)
         valToLedger = valFromLedger + bool zero valMint (mode == LedgerMode) - valWithdraw
         valFee      = protocolFeeValue mode v
-    ledgerModifyTx par valToLedger
+    ledgerModifyTx par valToLedger mode
 
     -- Paying fees and withdrawing
     when (v < 0) $ do
