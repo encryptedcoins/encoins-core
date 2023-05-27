@@ -152,16 +152,16 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v
       cond4 = vIn == (vOut + val)         -- Wallet Mode
       cond5 = vIn == (vOut + vMint + val) -- Ledger Mode
 
-      -- At most one pure ada output or two outputs that contain exactly one additional token
-      cond6 = (length vIns <= 1 && all (\x -> length (flattenValue x) == 1) vIns)
-        || ((length vIns == 2) && all (\x -> length (flattenValue x) == 2) vIns)
+      -- Sizes of the Ledger outputs
+      txOutSizes = map (length . flattenValue) vIns
+      cond6 = null txOutSizes || txOutSizes == [1] || txOutSizes == [2, 2]
 
       -- ADA value is concentrated in the single output
-      adaVals   = map (\x -> valueOf x adaSymbol adaToken) vIns
-      cond7 = length (filter (> minAdaTxOutInLedger) adaVals) <= 1
+      cond7 = length vIns /= 2 || (valueOf (vIns !! 1) adaSymbol adaToken == minAdaTxOutInLedger)
 
       -- Only ENCOINS and ADA are allowed in the produced Ledger outputs
-      cond8 = not (any (\s -> s /= adaSymbol && s /= ownCurrencySymbol ctx) (symbols vIn))
+      outSymbols = symbols vIn
+      cond8 = outSymbols == [adaSymbol] || outSymbols == [adaSymbol, ownCurrencySymbol ctx]
 
 toEncoinsPolicyParams :: EncoinsProtocolParams -> EncoinsPolicyParams
 toEncoinsPolicyParams par@(_, _, verifierPKH) = (beaconToken par, verifierPKH)

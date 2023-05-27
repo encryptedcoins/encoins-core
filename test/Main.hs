@@ -19,7 +19,7 @@ import           Data.Maybe                       (fromJust)
 import           Data.Text                        (pack)
 import           Ledger                           (TxOutRef(..), TxId (..))
 import           Ledger.Tx.CardanoAPI             (toCardanoAddressInEra)
-import           Ledger.Value                     (CurrencySymbol(..))
+import           Ledger.Value                     (CurrencySymbol(..), symbols)
 import           PlutusTx                         (Data (..), ToData(..), builtinDataToData)
 import           PlutusTx.Builtins                (serialiseData)
 import           PlutusTx.Prelude
@@ -54,8 +54,8 @@ mkSchema (Constr n dats) = "{ \"constructor\": " ++ show n ++ ", \"fields\": [" 
 main :: IO ()
 main = do
     let encoinsPar     = (
-                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "4850c8f22b2d897b362eca7f0986064dcd440e303442378c350c0a744d7975a0") 2,
-                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "6310bf30d91cab71e6bb501a7dc415c70d92a7afc2ae92c6171643aee6af3588") 1,
+                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "167a7f633938bb9b5140381f3e22e068745df1aeafec64294d3caf1071b23d70") 2,
+                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "699f87476ba6550720a483a93fe21cbcf9f8813831874bcc629e65389bc0661f") 1,
                 toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC9365419D3446BD5A4DCDE19396AAC68070977D"
             )
         encoinsSymb    = encoinsSymbol encoinsPar
