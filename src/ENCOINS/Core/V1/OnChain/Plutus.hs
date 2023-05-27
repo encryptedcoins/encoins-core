@@ -22,10 +22,10 @@
 module ENCOINS.Core.V1.OnChain.Plutus where
 
 import           Data.Maybe                                (fromJust)
-import           Ledger.Ada                                (lovelaceValueOf, getLovelace, fromValue)
+import           Ledger.Ada                                (lovelaceValueOf)
 import           Ledger.Tokens                             (token)
 import           Ledger.Typed.Scripts                      (IsScriptContext(..), Versioned (..), Language (..))
-import           Ledger.Value                              (AssetClass (..), geq, flattenValue, symbols)
+import           Ledger.Value                              (AssetClass (..), geq, symbols, valueOf, flattenValue)
 import           Plutus.Script.Utils.V2.Contexts           (ownCurrencySymbol)
 import           Plutus.Script.Utils.V2.Scripts            (validatorHash, scriptCurrencySymbol, stakeValidatorHash)
 import           Plutus.V2.Ledger.Api
@@ -152,13 +152,13 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v
       cond4 = vIn == (vOut + val)         -- Wallet Mode
       cond5 = vIn == (vOut + vMint + val) -- Ledger Mode
 
-      -- Ledger outputs' size limit and efficient space usage
-      txOutSize = sort $ map (length . flattenValue) vIns
-      cond6 = null vIns || (all (6 ==) (tail txOutSize) && (head txOutSize <= 6))
+      -- At most one pure ada output or two outputs that contain exactly one additional token
+      cond6 = (length vIns <= 1 && all (\x -> length (flattenValue x) == 1) vIns)
+        || ((length vIns == 2) && all (\x -> length (flattenValue x) == 2) vIns)
 
       -- ADA value is concentrated in the single output
-      adaVals   = sortBy (flip compare) $ map (getLovelace . fromValue) vIns
-      cond7 = null vIns || all (minAdaTxOutInLedger ==) (tail adaVals)
+      adaVals   = map (\x -> valueOf x adaSymbol adaToken) vIns
+      cond7 = length (filter (> minAdaTxOutInLedger) adaVals) <= 1
 
       -- Only ENCOINS and ADA are allowed in the produced Ledger outputs
       cond8 = not (any (\s -> s /= adaSymbol && s /= ownCurrencySymbol ctx) (symbols vIn))

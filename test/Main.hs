@@ -32,7 +32,7 @@ import           Text.Hex                         (decodeHex, encodeHex)
 import           ENCOINS.Bulletproofs             (BulletproofSetup (..), Secret (..), Randomness (..),
                                                     Input (..), Proof(..), bulletproof, parseBulletproofParams)
 import           ENCOINS.BaseTypes                (MintingPolarity(..), groupExp, groupGenerator, fromGroupElement)
-import           ENCOINS.Core.OnChain             (encoinsPolicy, encoinsSymbol, beaconCurrencySymbol, ledgerValidatorAddress, toEncoinsPolicyParams)
+import           ENCOINS.Core.OnChain             (encoinsPolicy, encoinsSymbol, beaconCurrencySymbol, ledgerValidatorAddress, toEncoinsPolicyParams, encoin)
 import           ENCOINS.Crypto.Field             (Field(..))
 import           PlutusAppsExtra.Utils.Address    (bech32ToAddress, addressToBech32)
 import           PlutusTx.Extra.ByteString        (toBytes)
@@ -50,12 +50,12 @@ mkSchema (Map entries) = "{\"map\": [" ++ lst ++ "]}"
         lst = intercalate ", " (zipWith mkEntry ks vs)
 mkSchema (Constr n dats) = "{ \"constructor\": " ++ show n ++ ", \"fields\": [" ++ lst ++ "]}"
     where lst = intercalate ", " (map mkSchema dats)
-    
+
 main :: IO ()
 main = do
     let encoinsPar     = (
-                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "06842b6068981ecff52b3bdd91e5b57d330b1831f556937599e756a0fec753c7") 1,
-                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "5e2012679f0a7ad74ac9c50de1861175653675db68807ec6d608cb949399ec20") 9,
+                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "4850c8f22b2d897b362eca7f0986064dcd440e303442378c350c0a744d7975a0") 2,
+                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "6310bf30d91cab71e6bb501a7dc415c70d92a7afc2ae92c6171643aee6af3588") 1,
                 toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC9365419D3446BD5A4DCDE19396AAC68070977D"
             )
         encoinsSymb    = encoinsSymbol encoinsPar
