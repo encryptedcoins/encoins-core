@@ -22,9 +22,9 @@ module ENCOINS.Core.OffChain (
     ledgerSpendTx',
     ledgerSpendTx,
     ledgerProduceTx,
+    makeLedgerValues,
     encoinsSendTx,
     -- ENCOINS Smart Contract
-    makeLedgerValues,
     encoinsBurnTx,
     ledgerModifyTx,
     encoinsTx,

@@ -122,7 +122,6 @@ hashRedeemer ((_, changeAddr, fees), (v, inputs), proofHash, _) =
     sha2_256 $ toBytes changeAddr `appendByteString` toBytes fees `appendByteString` toBytes v
     `appendByteString` foldr (appendByteString . inputToBytes) emptyByteString inputs `appendByteString` proofHash
 
-
 {-# INLINABLE encoinName #-}
 encoinName :: BuiltinByteString -> TokenName
 encoinName = TokenName
@@ -135,11 +134,9 @@ checkLedgerOutputValue1 (v:vs) = length (flattenValue v) <= 2 && checkLedgerOutp
 {-# INLINABLE checkLedgerOutputValue2 #-}
 checkLedgerOutputValue2 :: [Value] -> Bool
 checkLedgerOutputValue2 [] = True
-checkLedgerOutputValue2 [v] = length (flattenValue v) == 2 && valueOf v adaSymbol adaToken == minAdaTxOutInLedger
-checkLedgerOutputValue2 _ = False
+checkLedgerOutputValue2 (v:vs) = length (flattenValue v) == 2 && valueOf v adaSymbol adaToken == minAdaTxOutInLedger && checkLedgerOutputValue2 vs
 
 {-# INLINABLE encoinsPolicyCheck #-}
--- TODO: remove on-chain sorting (requires sorting inputs and proof components)
 encoinsPolicyCheck :: EncoinsPolicyParams -> EncoinsRedeemerOnChain -> ScriptContext -> Bool
 encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v, inputs), _, sig)
     ctx@ScriptContext{scriptContextTxInfo=info} =
