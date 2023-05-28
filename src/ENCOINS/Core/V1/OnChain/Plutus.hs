@@ -22,10 +22,10 @@
 module ENCOINS.Core.V1.OnChain.Plutus where
 
 import           Data.Maybe                                (fromJust)
-import           Ledger.Ada                                (lovelaceValueOf)
+import           Ledger.Ada                                (lovelaceValueOf, getLovelace, fromValue)
 import           Ledger.Tokens                             (token)
 import           Ledger.Typed.Scripts                      (IsScriptContext(..), Versioned (..), Language (..))
-import           Ledger.Value                              (AssetClass (..), geq, symbols, valueOf, flattenValue)
+import           Ledger.Value                              (AssetClass (..), geq, symbols, flattenValue, noAdaValue)
 import           Plutus.Script.Utils.V2.Contexts           (ownCurrencySymbol)
 import           Plutus.Script.Utils.V2.Scripts            (validatorHash, scriptCurrencySymbol, stakeValidatorHash)
 import           Plutus.V2.Ledger.Api
@@ -152,16 +152,15 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v
       cond4 = vIn == (vOut + val)         -- Wallet Mode
       cond5 = vIn == (vOut + vMint + val) -- Ledger Mode
 
-      -- Sizes of the Ledger outputs
-      txOutSizes = map (length . flattenValue) vIns
-      cond6 = null txOutSizes || txOutSizes == [1] || txOutSizes == [2, 2]
+      -- TxOuts size limit
+      txOutSize = sort $ map (length . flattenValue) vIns
+      cond6 = null vIns || (all (2 ==) (tail txOutSize) && (head txOutSize <= 2))
 
-      -- ADA value is concentrated in the single output
-      cond7 = length (filter (\x -> valueOf x adaSymbol adaToken > minAdaTxOutInLedger) vIns) <= 1
+      -- ADA value is concentrated in a single TxOut
+      adaVals   = sortBy (flip compare) $ map (getLovelace . fromValue) vIns
+      cond7 = null vIns || all (minAdaTxOutInLedger ==) (tail adaVals)
 
-      -- Only ENCOINS and ADA are allowed in the produced Ledger outputs
-      outSymbols = symbols vIn
-      cond8 = null outSymbols || outSymbols == [adaSymbol] || outSymbols == [adaSymbol, ownCurrencySymbol ctx]
+      cond8 = symbols (noAdaValue vIn) == [ownCurrencySymbol ctx]
 
 toEncoinsPolicyParams :: EncoinsProtocolParams -> EncoinsPolicyParams
 toEncoinsPolicyParams par@(_, _, verifierPKH) = (beaconToken par, verifierPKH)
