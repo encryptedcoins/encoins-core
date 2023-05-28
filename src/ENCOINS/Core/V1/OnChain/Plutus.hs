@@ -25,7 +25,7 @@ import           Data.Maybe                                (fromJust)
 import           Ledger.Ada                                (lovelaceValueOf, getLovelace, fromValue)
 import           Ledger.Tokens                             (token)
 import           Ledger.Typed.Scripts                      (IsScriptContext(..), Versioned (..), Language (..))
-import           Ledger.Value                              (AssetClass (..), geq, symbols, flattenValue, noAdaValue)
+import           Ledger.Value                              (AssetClass (..), geq, symbols, flattenValue)
 import           Plutus.Script.Utils.V2.Contexts           (ownCurrencySymbol)
 import           Plutus.Script.Utils.V2.Scripts            (validatorHash, scriptCurrencySymbol, stakeValidatorHash)
 import           Plutus.V2.Ledger.Api
@@ -160,7 +160,8 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v
       adaVals   = sortBy (flip compare) $ map (getLovelace . fromValue) vIns
       cond7 = null vIns || all (minAdaTxOutInLedger ==) (tail adaVals)
 
-      cond8 = symbols (noAdaValue vIn) == [ownCurrencySymbol ctx]
+      -- Only ENCOINS and ADA are allowed in the produced Ledger outputs
+      cond8 = not (any (\s -> s /= adaSymbol && s /= ownCurrencySymbol ctx) (symbols vIn))
 
 toEncoinsPolicyParams :: EncoinsProtocolParams -> EncoinsPolicyParams
 toEncoinsPolicyParams par@(_, _, verifierPKH) = (beaconToken par, verifierPKH)
