@@ -43,11 +43,13 @@ module ENCOINS.Core.OnChain (
     encoinsStakeValidatorHash,
     -- ENCOINS Ledger Validator
     EncoinsLedgerValidatorParams,
-    ledgerValidatorCheck,
-    ledgerValidator,
-    ledgerValidatorV,
-    ledgerValidatorHash,
-    ledgerValidatorAddress
+    Aiken.ledgerValidatorCheck,
+    Aiken.ledgerValidator,
+    Aiken.ledgerValidatorV,
+    Aiken.ledgerValidatorHash,
+    Aiken.ledgerValidatorAddress
 ) where
 
-import           ENCOINS.Core.V1.OnChain
+import           ENCOINS.Core.V1.OnChain.Plutus
+import qualified ENCOINS.Core.V1.OnChain.Aiken as Aiken
+import qualified ENCOINS.Core.V1.OnChain.Aiken.UPLC as Aiken

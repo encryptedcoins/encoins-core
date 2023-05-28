@@ -32,11 +32,14 @@ library
     exposed-modules:
       ENCOINS.Core.OffChain
       ENCOINS.Core.OnChain
+    other-modules:
       ENCOINS.Core.V1.OffChain
       ENCOINS.Core.V1.OffChain.ENCS
       ENCOINS.Core.V1.OffChain.Fees
       ENCOINS.Core.V1.OffChain.Modes
-      ENCOINS.Core.V1.OnChain
+      ENCOINS.Core.V1.OnChain.Aiken
+      ENCOINS.Core.V1.OnChain.Aiken.UPLC
+      ENCOINS.Core.V1.OnChain.Plutus
     build-depends:
       base                          >= 4.9 && < 5,
       base16-bytestring                      -any,

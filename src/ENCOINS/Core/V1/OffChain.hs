@@ -11,37 +11,38 @@
 
 module ENCOINS.Core.V1.OffChain where
 
-import           Control.Monad.State                      (gets, when)
+import           Control.Monad.State                      (gets, when, mapM_)
+import           Data.Bifunctor                           (bimap)
 import           Data.Bool                                (bool)
 import           Data.Functor                             (($>), (<$>))
 import           Data.Text                                (pack)
 import           Ledger                                   (DecoratedTxOut (..), _decoratedTxOutAddress, noAdaValue)
 import           Ledger.Ada                               (lovelaceValueOf)
-import           Ledger.Value                             (adaOnlyValue, geq, gt, flattenValue)
+import           Ledger.Value                             (adaOnlyValue, geq, gt, flattenValue, singleton)
 import           Plutus.V2.Ledger.Api                     hiding (singleton)
 import           PlutusTx.Extra.ByteString                (toBytes)
-import           PlutusTx.Prelude                         hiding (mapM, (<$>), (<>))
+import           PlutusTx.Prelude                         hiding (mapM_, mapM, (<$>), (<>))
 import           Prelude                                  (show, (<>))
 import           Text.Hex                                 (encodeHex)
 
-import           ENCOINS.BaseTypes                        (MintingPolarity (..))
 import           ENCOINS.Bulletproofs                     (polarityToInteger)
 import           ENCOINS.Core.V1.OffChain.Fees            (protocolFeeValue, protocolFee)
 import           ENCOINS.Core.V1.OffChain.Modes           (EncoinsMode(..))
-import           ENCOINS.Core.V1.OnChain
+import           ENCOINS.Core.OnChain
 import           PlutusAppsExtra.Constraints.OffChain
 import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
 import           PlutusAppsExtra.Scripts.OneShotCurrency  (oneShotCurrencyMintTx)
 import           PlutusAppsExtra.Types.Tx                 (TransactionBuilder, TxConstructor (..))
 import           PlutusAppsExtra.Utils.Crypto             (sign)
 import           PlutusAppsExtra.Utils.Datum              (hashedUnit, inlinedUnit)
-import           PlutusAppsExtra.Utils.Value              (unflattenValue, isCurrencyAndAdaOnlyValue)
+import           PlutusAppsExtra.Utils.Value              (unflattenValue, isCurrencyAndAdaOnlyValue, currencyOnlyValue)
 
 mkEncoinsRedeemerOnChain :: BuiltinByteString -> EncoinsRedeemer -> EncoinsRedeemerOnChain
 mkEncoinsRedeemerOnChain prvKey (par, input, proof, _) =
-    let proofHash  = sha2_256 $ toBytes proof
-        redOnChain = (par, input, proofHash, "")
-    in (par, input, proofHash, sign prvKey $ hashRedeemer redOnChain)
+    let input'    = (fst input, sort $ map (bimap encoinName polarityToInteger) (snd input))
+        proofHash  = sha2_256 $ toBytes proof
+        redOnChain = (par, input', proofHash, "")
+    in (par, input', proofHash, sign prvKey $ hashRedeemer redOnChain)
 
 ---------------------------- Stake Owner Token Minting Policy --------------------------------------
 
@@ -121,9 +122,21 @@ ledgerProduceTx par val =
             utxoProducedTx (ledgerValidatorAddress par) val' (Just inlinedUnit)
             ledgerProduceTx par (val - val')
 
+-- Send encoins in value to the given address
+encoinsSendTx :: EncoinsProtocolParams -> Address -> Value -> TransactionBuilder ()
+encoinsSendTx par addr valSend = do
+    let valEncoins = currencyOnlyValue (encoinsSymbol par) valSend
+    if addr == ledgerValidatorAddress par
+        then do
+            let val = valEncoins + lovelaceValueOf (minAdaTxOutInLedger * length (flattenValue valEncoins))
+            mapM_ (\v -> ledgerProduceTx par v $> ()) $ makeLedgerValues par val
+        else do
+            let val = valEncoins + lovelaceValueOf minAdaTxOutInLedger
+            utxoProducedTx addr val (Just inlinedUnit)
+
 ------------------------------------- ENCOINS Smart Contract -----------------------------------------
 
--- Returns value spent from the ENCOINS Ledger.
+-- Returns value spent from the ENCOINS Ledger and the number of outputs spent.
 encoinsBurnTx :: EncoinsProtocolParams -> [BuiltinByteString] -> EncoinsMode -> TransactionBuilder Value
 encoinsBurnTx _   []  _    = return zero
 encoinsBurnTx par bss mode = do
@@ -140,17 +153,28 @@ encoinsBurnTx par bss mode = do
         -- Sum the current and the future values spent from the ENCOINS Ledger
         in (+) (bool zero v (mode == LedgerMode)) <$> encoinsBurnTx par bss' mode
 
+makeLedgerValues :: EncoinsProtocolParams -> Value -> [Value]
+makeLedgerValues par val = valsHead : valsTail
+    where valsEncoins = map (\(s, n, i) -> singleton s n i) $ flattenValue $ currencyOnlyValue (encoinsSymbol par) val
+          hasEncoins = not $ null valsEncoins
+          valsTail = bool [] (map (+ lovelaceValueOf minAdaTxOutInLedger) $ tail valsEncoins) hasEncoins
+          valsHead = bool zero (head valsEncoins) hasEncoins + adaOnlyValue val - lovelaceValueOf (minAdaTxOutInLedger * length valsTail)
+
 -- Modify the value locked in the ENCOINS Ledger script by the given value
 ledgerModifyTx :: EncoinsProtocolParams -> Value -> TransactionBuilder ()
 ledgerModifyTx par val
-    | adaOnlyValue val `geq` lovelaceValueOf minAdaTxOutInLedger = ledgerProduceTx par val $> ()
+    | adaOnlyValue val `geq` lovelaceValueOf minAdaTxOutInLedger = mapM_ (\v -> ledgerProduceTx par v $> ()) $ makeLedgerValues par val
     | otherwise     = do
-        let valAda = lovelaceValueOf minAdaTxOutInLedger - adaOnlyValue val
+        -- The number of encoins to put in the Ledger
+        let n = length (flattenValue val) - 1
+        let valAda = lovelaceValueOf (n * minAdaTxOutInLedger) - adaOnlyValue val
         -- TODO: Spend several utxo to get the required value
         -- TODO: Randomize the selection process
         val'  <- fromMaybe zero <$> ledgerSpendTx par valAda
         -- Spend an additional utxo if possible
-        val'' <- fromMaybe zero <$> ledgerSpendTx' par zero
+        val'' <- if n <= 1
+            then fromMaybe zero <$> ledgerSpendTx' par (lovelaceValueOf $ minAdaTxOutInLedger + 1)
+            else return zero
         if val' `gt` zero
             then ledgerModifyTx par (val + val' + val'')
             else failTx "ledgerModifyTx" ("Cannot modify the value in the ENCOINS Ledger: " <> pack (show val)) Nothing $> ()
@@ -165,15 +189,15 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
         $ failTx "encoinsTx" "The fees are not correct" Nothing $> ()
 
     -- Spending utxos with encoins to burn
-    let encoinsToBurn = filter (\(_, p) -> p == Burn) inputs
-    valFromLedger <- encoinsBurnTx par (map fst encoinsToBurn) mode
+    let encoinsToBurn = filter (\(_, p) -> p == -1) inputs
+    valFromLedger <- encoinsBurnTx par (map (unTokenName . fst) encoinsToBurn) mode
 
     -- Referencing beacon utxo
     let beacon      = beaconToken par
     utxoReferencedTx (\_ o -> _decoratedTxOutAddress o == ledgerAddr && _decoratedTxOutValue o `geq` beacon) $> ()
 
     -- Minting and burning encoins
-    let valMint  = sum $ map (\(bs, p) -> scale (polarityToInteger p) (encoin par bs)) inputs
+    let valMint  = sum $ map (uncurry $ singleton (encoinsSymbol par)) inputs
     tokensMintedTx (encoinsPolicyV par) red valMint
 
     -- Modify ENCOINS Ledger by the given value

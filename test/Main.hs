@@ -19,7 +19,7 @@ import           Data.Maybe                       (fromJust)
 import           Data.Text                        (pack)
 import           Ledger                           (TxOutRef(..), TxId (..))
 import           Ledger.Tx.CardanoAPI             (toCardanoAddressInEra)
-import           Ledger.Value                     (CurrencySymbol(..))
+import           Ledger.Value                     (CurrencySymbol(..), symbols)
 import           PlutusTx                         (Data (..), ToData(..), builtinDataToData)
 import           PlutusTx.Builtins                (serialiseData)
 import           PlutusTx.Prelude
@@ -32,8 +32,7 @@ import           Text.Hex                         (decodeHex, encodeHex)
 import           ENCOINS.Bulletproofs             (BulletproofSetup (..), Secret (..), Randomness (..),
                                                     Input (..), Proof(..), bulletproof, parseBulletproofParams)
 import           ENCOINS.BaseTypes                (MintingPolarity(..), groupExp, groupGenerator, fromGroupElement)
-import           ENCOINS.Core.OnChain             (encoinsPolicy, encoinsSymbol, beaconCurrencySymbol)
-import           ENCOINS.Core.V1.OnChain          (hashRedeemer, ledgerValidatorAddress)
+import           ENCOINS.Core.OnChain             (encoinsPolicy, encoinsSymbol, beaconCurrencySymbol, ledgerValidatorAddress, toEncoinsPolicyParams, encoin)
 import           ENCOINS.Crypto.Field             (Field(..))
 import           PlutusAppsExtra.Utils.Address    (bech32ToAddress, addressToBech32)
 import           PlutusTx.Extra.ByteString        (toBytes)
@@ -51,12 +50,12 @@ mkSchema (Map entries) = "{\"map\": [" ++ lst ++ "]}"
         lst = intercalate ", " (zipWith mkEntry ks vs)
 mkSchema (Constr n dats) = "{ \"constructor\": " ++ show n ++ ", \"fields\": [" ++ lst ++ "]}"
     where lst = intercalate ", " (map mkSchema dats)
-    
+
 main :: IO ()
 main = do
     let encoinsPar     = (
-                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "35a9d56cef315a46fd5798260e6863f0b15f8641b0b5a598bd77246d93eb8980") 2,
-                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "35a9d56cef315a46fd5798260e6863f0b15f8641b0b5a598bd77246d93eb8980") 20,
+                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "65324c55f7b0226c1e8a0a78db8e8bc71ff7d9b6d7185ad4cf4e979ae73381f1") 2,
+                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "98e97b1f0659cde1e2e33331f426bab2ed2c8dcb95f4b3575eafc004fe521d99") 2,
                 toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC9365419D3446BD5A4DCDE19396AAC68070977D"
             )
         encoinsSymb    = encoinsSymbol encoinsPar
@@ -65,8 +64,12 @@ main = do
     -- Writing a new bulletproof setup to JSON
     bulletproofSetup <- randomIO :: IO BulletproofSetup
     writeFileJSON "result/bulletproof_setup.json" bulletproofSetup
-    -- Writing current currency symbol to JSON
+    -- Printing ENCOINS minting policy parameters
+    writeFileJSON "result/encoinsPolicyParameters.json" $ toEncoinsPolicyParams encoinsPar
+    -- Writing ENCOINS currency symbol to JSON
     writeFileJSON "result/encoinsPolicyId.json" $ toJSON encoinsSymb
+    -- Writing ENCOINS minting policy to JSON
+    writeFileJSON "result/encoinsPolicy.json" $ toJSON $ encoinsPolicy encoinsPar
     -- Writing current staking address to JSON
     writeFileJSON "result/ledgerAddr.json" $ toJSON ledgerAddr
 

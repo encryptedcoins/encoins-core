@@ -19,34 +19,34 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 {-# HLINT ignore "Use bimap" #-}
 
-module ENCOINS.Core.V1.OnChain where
+module ENCOINS.Core.V1.OnChain.Plutus where
 
 import           Data.Maybe                                (fromJust)
-import           Ledger.Ada                                (lovelaceValueOf, getLovelace, fromValue)
+import           Ledger.Ada                                (lovelaceValueOf)
 import           Ledger.Tokens                             (token)
 import           Ledger.Typed.Scripts                      (IsScriptContext(..), Versioned (..), Language (..))
-import           Ledger.Value                              (AssetClass (..), geq, flattenValue)
+import           Ledger.Value                              (AssetClass (..), geq, flattenValue, valueOf)
 import           Plutus.Script.Utils.V2.Scripts            (validatorHash, scriptCurrencySymbol, stakeValidatorHash)
 import           Plutus.V2.Ledger.Api
 import           PlutusTx                                  (compile, applyCode, liftCode)
 import           PlutusTx.AssocMap                         (lookup, keys, member)
+import           PlutusTx.Extra.ByteString                 (toBytes)
 import           PlutusTx.Prelude
 import           Text.Hex                                  (decodeHex)
 
-import           ENCOINS.Bulletproofs                      (Proof, polarityToInteger)
+import           ENCOINS.Bulletproofs                      (Proof)
 import           ENCOINS.BaseTypes                         (MintingPolarity)
 import           ENCOINS.Orphans                           ()
 import           PlutusAppsExtra.Constraints.OnChain       (tokensMinted, filterUtxoSpent, utxoReferenced, utxoProduced, utxoSpent, filterUtxoProduced)
 import           PlutusAppsExtra.Scripts.OneShotCurrency   (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
-import           PlutusAppsExtra.Utils.Datum
+import           PlutusAppsExtra.Utils.Datum               (isInlineUnit)
 import           PlutusAppsExtra.Utils.Orphans             ()
-import           PlutusTx.Extra.ByteString                 (ToBuiltinByteString(..))
 
 -- StakeOwner reference, Beacon reference, verifierPKH
 type EncoinsProtocolParams = (TxOutRef, TxOutRef, BuiltinByteString)
 
 minAdaTxOutInLedger :: Integer
-minAdaTxOutInLedger = 1_500_000
+minAdaTxOutInLedger = 2_000_000
 
 ---------------------------- Stake Owner Token Minting Policy --------------------------------------
 
@@ -106,19 +106,39 @@ type EncoinsPolicyParams = (Value, BuiltinByteString)
 -- Ledger address, change addresses, total fees
 type TxParams = (Address, Address, Integer)
 type EncoinsInput = (Integer, [(BuiltinByteString, MintingPolarity)])
+type EncoinsInputOnChain = (Integer, [(TokenName, Integer)])
 type ProofHash = BuiltinByteString
 type ProofSignature = BuiltinByteString
 type EncoinsRedeemer = (TxParams, EncoinsInput, Proof, ProofSignature)
-type EncoinsRedeemerOnChain = (TxParams, EncoinsInput, ProofHash, ProofSignature)
+type EncoinsRedeemerOnChain = (TxParams, EncoinsInputOnChain, ProofHash, ProofSignature)
 
+{-# INLINABLE inputToBytes #-}
+inputToBytes :: (TokenName, Integer) -> BuiltinByteString
+inputToBytes (TokenName bs, i) = bs `appendByteString` consByteString (if i == 1 then 1 else 0) emptyByteString
+
+{-# INLINABLE hashRedeemer #-}
 hashRedeemer :: EncoinsRedeemerOnChain -> BuiltinByteString
 hashRedeemer ((_, changeAddr, fees), (v, inputs), proofHash, _) =
-    sha2_256 $ toBytes changeAddr `appendByteString` toBytes fees `appendByteString` toBytes (v, inputs) `appendByteString` proofHash
+    sha2_256 $ toBytes changeAddr `appendByteString` toBytes fees `appendByteString` toBytes v
+    `appendByteString` foldr (appendByteString . inputToBytes) emptyByteString inputs `appendByteString` proofHash
+
 
 {-# INLINABLE encoinName #-}
 encoinName :: BuiltinByteString -> TokenName
 encoinName = TokenName
 
+{-# INLINABLE checkLedgerOutputValue1 #-}
+checkLedgerOutputValue1 :: [Value] -> Bool
+checkLedgerOutputValue1 [] = True
+checkLedgerOutputValue1 (v:vs) = length (flattenValue v) <= 2 && checkLedgerOutputValue2 vs
+
+{-# INLINABLE checkLedgerOutputValue2 #-}
+checkLedgerOutputValue2 :: [Value] -> Bool
+checkLedgerOutputValue2 [] = True
+checkLedgerOutputValue2 [v] = length (flattenValue v) == 2 && valueOf v adaSymbol adaToken == minAdaTxOutInLedger
+checkLedgerOutputValue2 _ = False
+
+{-# INLINABLE encoinsPolicyCheck #-}
 -- TODO: remove on-chain sorting (requires sorting inputs and proof components)
 encoinsPolicyCheck :: EncoinsPolicyParams -> EncoinsRedeemerOnChain -> ScriptContext -> Bool
 encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v, inputs), _, sig)
@@ -129,13 +149,12 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v
       && cond3
       && (cond4 || cond5)
       && cond6
-      && cond7
   where
       fees'   = abs fees
       val     = lovelaceValueOf (v * 1_000_000)
       valFees = lovelaceValueOf (fees' * 1_000_000)
 
-      cond0 = tokensMinted ctx $ fromList $ sort $ map (\(bs, p) -> (encoinName bs, polarityToInteger p)) inputs
+      cond0 = tokensMinted ctx $ fromList inputs
       cond1 = verifyEd25519Signature verifierPKH (hashRedeemer red) sig
       cond2 = (v + fees' >= 0) || utxoProduced info (\o -> txOutAddress o == changeAddr && txOutValue o `geq` (zero - val - valFees))
       cond3 = utxoReferenced info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` beacon)
@@ -149,13 +168,8 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v
       cond4 = vIn == (vOut + val)         -- Wallet Mode
       cond5 = vIn == (vOut + vMint + val) -- Ledger Mode
 
-      -- TxOuts size limit
-      txOutSize = sort $ map (length . flattenValue) vIns
-      cond6 = null vIns || (all (6 ==) (tail txOutSize) && (head txOutSize <= 6))
-
-      -- ADA value is concentrated in a single TxOut
-      adaVals   = sortBy (flip compare) $ map (getLovelace . fromValue) vIns
-      cond7 = null vIns || all (minAdaTxOutInLedger ==) (tail adaVals)
+      -- The ENCOINS Ledger output values (only two are allowed) must satisfy conditions on the size and ADA concentration
+      cond6 = checkLedgerOutputValue1 vIns
 
 toEncoinsPolicyParams :: EncoinsProtocolParams -> EncoinsPolicyParams
 toEncoinsPolicyParams par@(_, _, verifierPKH) = (beaconToken par, verifierPKH)
