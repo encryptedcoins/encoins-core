@@ -93,17 +93,24 @@ test-suite encoins-core-test
   Default-Language:     Haskell2010
   Hs-Source-Dirs:       test
   Main-Is:              Main.hs
+  Other-Modules:        Gen
+                        Tx
   Build-Depends:
     base                                     -any,
     aeson                                    -any,
+    aeson-casing                             -any,
     bytestring                               -any,
     cardano-api                              -any,
+    cardano-node-emulator                    -any,
     containers                               -any,
     encoins-bulletproofs                     -any,
     encoins-core                             -any,
     generic-arbitrary                        -any,
     hex-text                                 -any,
+    hspec                                    -any,
+    mtl                                      -any,
     plutus-apps-extra                        -any,
+    plutus-apps-extra-test-utils             -any,
     plutus-contract                          -any,
     plutus-chain-index                       -any,
     plutus-chain-index-core                  -any,
