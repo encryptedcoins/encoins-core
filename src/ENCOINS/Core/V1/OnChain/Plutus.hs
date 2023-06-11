@@ -48,6 +48,12 @@ type EncoinsProtocolParams = (TxOutRef, TxOutRef, BuiltinByteString)
 minAdaTxOutInLedger :: Integer
 minAdaTxOutInLedger = 2_000_000
 
+minTxOutInLedger :: Value
+minTxOutInLedger = lovelaceValueOf minAdaTxOutInLedger
+
+depositMultiplier :: Integer
+depositMultiplier = 2
+
 ---------------------------- Stake Owner Token Minting Policy --------------------------------------
 
 {-# INLINABLE stakeOwnerTokenName #-}
@@ -147,23 +153,30 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v
       && (cond4 || cond5)
       && cond6
   where
-      fees'   = abs fees
-      val     = lovelaceValueOf (v * 1_000_000)
-      valFees = lovelaceValueOf (fees' * 1_000_000)
+      val          = lovelaceValueOf (v * 1_000_000)
+
+      fees'        = abs fees
+      valFees      = lovelaceValueOf (fees' * 1_000_000)
+
+      deposits     = depositMultiplier * sum (map snd inputs)
+      valDeposits  = lovelaceValueOf (deposits * 1_000_000)
+
+      deposits'    = if cond5 then deposits else 0
+      valDeposits' = lovelaceValueOf (deposits' * 1_000_000)
 
       cond0 = tokensMinted ctx $ fromList inputs
       cond1 = verifyEd25519Signature verifierPKH (hashRedeemer red) sig
-      cond2 = (v + fees' >= 0) || utxoProduced info (\o -> txOutAddress o == changeAddr && txOutValue o `geq` (zero - val - valFees))
+      cond2 = (v + fees' + deposits' >= 0) || utxoProduced info (\o -> txOutAddress o == changeAddr && txOutValue o `geq` (zero - val - valFees - valDeposits'))
       cond3 = utxoReferenced info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` beacon)
 
       vMint = txInfoMint $ scriptContextTxInfo ctx
-      vOuts = map txOutValue $ filterUtxoSpent info (\o -> txOutAddress o == ledgerAddr)
+      vOuts = map txOutValue $ filterUtxoSpent info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` minTxOutInLedger)
       vOut  = sum vOuts
-      vIns  = map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == ledgerAddr && isInlineUnit (txOutDatum o))
+      vIns  = map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` minTxOutInLedger && isInlineUnit (txOutDatum o))
       vIn   = sum vIns
 
-      cond4 = vIn == (vOut + val)         -- Wallet Mode
-      cond5 = vIn == (vOut + vMint + val) -- Ledger Mode
+      cond4 = vIn == (vOut + val)                       -- Wallet Mode
+      cond5 = vIn == (vOut + vMint + val + valDeposits) -- Ledger Mode
 
       -- The ENCOINS Ledger output values (only two are allowed) must satisfy conditions on the size and ADA concentration
       cond6 = checkLedgerOutputValue1 vIns

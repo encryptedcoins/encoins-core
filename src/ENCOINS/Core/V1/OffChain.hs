@@ -195,9 +195,15 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
     let valMint  = sum $ map (uncurry $ singleton (encoinsSymbol par)) inputs
     tokensMintedTx (encoinsPolicyV par) red valMint
 
+    -- Calculate deposits
+    let deposits     = depositMultiplier * sum (map snd inputs)
+        valDeposits  = lovelaceValueOf (deposits * 1_000_000)
+        deposits'    = if mode == LedgerMode then deposits else 0
+        valDeposits' = lovelaceValueOf (deposits' * 1_000_000)
+
     -- Modify ENCOINS Ledger by the given value
     let valWithdraw = negate $ lovelaceValueOf (v * 1_000_000)
-        valToLedger = valFromLedger + bool zero valMint (mode == LedgerMode) - valWithdraw
+        valToLedger = valFromLedger + bool zero (valMint + valDeposits) (mode == LedgerMode) - valWithdraw
         valFee      = protocolFeeValue mode v
     ledgerModifyTx par valToLedger
 
@@ -207,4 +213,4 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
         utxoProducedTx addrTreasury valFee (Just inlinedUnit)
         -- NOTE: withdrawing to a Plutus Script address is not possible
         when (abs v - fees > 0) $
-            utxoProducedTx changeAddr (valWithdraw - valFee - valFee) Nothing
+            utxoProducedTx changeAddr (valWithdraw - valFee - valFee - valDeposits') Nothing

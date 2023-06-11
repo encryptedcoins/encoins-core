@@ -1,6 +1,7 @@
 module ENCOINS.Core.OnChain (
     EncoinsProtocolParams,
     minAdaTxOutInLedger,
+    depositMultiplier,
     -- Stake Owner Token Minting Policy
     stakeOwnerTokenName,
     stakeOwnerMintParams,
