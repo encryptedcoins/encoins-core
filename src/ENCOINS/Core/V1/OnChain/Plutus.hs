@@ -48,8 +48,8 @@ type EncoinsProtocolParams = (TxOutRef, TxOutRef, BuiltinByteString)
 minAdaTxOutInLedger :: Integer
 minAdaTxOutInLedger = 2_000_000
 
-minTxOutInLedger :: Value
-minTxOutInLedger = lovelaceValueOf minAdaTxOutInLedger
+minTxOutValueInLedger :: Value
+minTxOutValueInLedger = lovelaceValueOf minAdaTxOutInLedger
 
 depositMultiplier :: Integer
 depositMultiplier = 2
@@ -170,9 +170,9 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v
       cond3 = utxoReferenced info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` beacon)
 
       vMint = txInfoMint $ scriptContextTxInfo ctx
-      vOuts = map txOutValue $ filterUtxoSpent info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` minTxOutInLedger)
+      vOuts = map txOutValue $ filterUtxoSpent info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` minTxOutValueInLedger)
       vOut  = sum vOuts
-      vIns  = map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` minTxOutInLedger && isInlineUnit (txOutDatum o))
+      vIns  = map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` minTxOutValueInLedger && isInlineUnit (txOutDatum o))
       vIn   = sum vIns
 
       cond4 = vIn == (vOut + val)                       -- Wallet Mode
