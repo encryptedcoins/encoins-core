@@ -22,11 +22,10 @@
 module ENCOINS.Core.V1.OnChain.Plutus where
 
 import           Data.Maybe                                (fromJust)
-import           Ledger.Ada                                (lovelaceValueOf, getLovelace, fromValue)
+import           Ledger.Ada                                (lovelaceValueOf)
 import           Ledger.Tokens                             (token)
 import           Ledger.Typed.Scripts                      (IsScriptContext(..), Versioned (..), Language (..))
-import           Ledger.Value                              (AssetClass (..), geq, symbols, flattenValue)
-import           Plutus.Script.Utils.V2.Contexts           (ownCurrencySymbol)
+import           Ledger.Value                              (AssetClass (..), geq, flattenValue, valueOf)
 import           Plutus.Script.Utils.V2.Scripts            (validatorHash, scriptCurrencySymbol, stakeValidatorHash)
 import           Plutus.V2.Ledger.Api
 import           PlutusTx                                  (compile, applyCode, liftCode)
@@ -35,7 +34,7 @@ import           PlutusTx.Extra.ByteString                 (toBytes)
 import           PlutusTx.Prelude
 import           Text.Hex                                  (decodeHex)
 
-import           ENCOINS.Bulletproofs                      (Proof, polarityToInteger)
+import           ENCOINS.Bulletproofs                      (Proof)
 import           ENCOINS.BaseTypes                         (MintingPolarity)
 import           ENCOINS.Orphans                           ()
 import           PlutusAppsExtra.Constraints.OnChain       (tokensMinted, filterUtxoSpent, utxoReferenced, utxoProduced, utxoSpent, filterUtxoProduced)
@@ -48,6 +47,12 @@ type EncoinsProtocolParams = (TxOutRef, TxOutRef, BuiltinByteString)
 
 minAdaTxOutInLedger :: Integer
 minAdaTxOutInLedger = 2_000_000
+
+minTxOutValueInLedger :: Value
+minTxOutValueInLedger = lovelaceValueOf minAdaTxOutInLedger
+
+depositMultiplier :: Integer
+depositMultiplier = 2
 
 ---------------------------- Stake Owner Token Minting Policy --------------------------------------
 
@@ -107,21 +112,37 @@ type EncoinsPolicyParams = (Value, BuiltinByteString)
 -- Ledger address, change addresses, total fees
 type TxParams = (Address, Address, Integer)
 type EncoinsInput = (Integer, [(BuiltinByteString, MintingPolarity)])
+type EncoinsInputOnChain = (Integer, [(TokenName, Integer)])
 type ProofHash = BuiltinByteString
 type ProofSignature = BuiltinByteString
 type EncoinsRedeemer = (TxParams, EncoinsInput, Proof, ProofSignature)
-type EncoinsRedeemerOnChain = (TxParams, EncoinsInput, ProofHash, ProofSignature)
+type EncoinsRedeemerOnChain = (TxParams, EncoinsInputOnChain, ProofHash, ProofSignature)
 
+{-# INLINABLE inputToBytes #-}
+inputToBytes :: (TokenName, Integer) -> BuiltinByteString
+inputToBytes (TokenName bs, i) = bs `appendByteString` consByteString (if i == 1 then 1 else 0) emptyByteString
+
+{-# INLINABLE hashRedeemer #-}
 hashRedeemer :: EncoinsRedeemerOnChain -> BuiltinByteString
 hashRedeemer ((_, changeAddr, fees), (v, inputs), proofHash, _) =
-    sha2_256 $ toBytes changeAddr `appendByteString` toBytes fees `appendByteString` toBytes (v, inputs) `appendByteString` proofHash
-
+    sha2_256 $ toBytes changeAddr `appendByteString` toBytes fees `appendByteString` toBytes v
+    `appendByteString` foldr (appendByteString . inputToBytes) emptyByteString inputs `appendByteString` proofHash
 
 {-# INLINABLE encoinName #-}
 encoinName :: BuiltinByteString -> TokenName
 encoinName = TokenName
 
--- TODO: remove on-chain sorting (requires sorting inputs and proof components)
+{-# INLINABLE checkLedgerOutputValue1 #-}
+checkLedgerOutputValue1 :: [Value] -> Bool
+checkLedgerOutputValue1 [] = True
+checkLedgerOutputValue1 (v:vs) = length (flattenValue v) <= 2 && checkLedgerOutputValue2 vs
+
+{-# INLINABLE checkLedgerOutputValue2 #-}
+checkLedgerOutputValue2 :: [Value] -> Bool
+checkLedgerOutputValue2 [] = True
+checkLedgerOutputValue2 (v:vs) = length (flattenValue v) == 2 && valueOf v adaSymbol adaToken == minAdaTxOutInLedger && checkLedgerOutputValue2 vs
+
+{-# INLINABLE encoinsPolicyCheck #-}
 encoinsPolicyCheck :: EncoinsPolicyParams -> EncoinsRedeemerOnChain -> ScriptContext -> Bool
 encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v, inputs), _, sig)
     ctx@ScriptContext{scriptContextTxInfo=info} =
@@ -131,37 +152,34 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v
       && cond3
       && (cond4 || cond5)
       && cond6
-      && cond7
-      && cond8
   where
-      fees'   = abs fees
-      val     = lovelaceValueOf (v * 1_000_000)
-      valFees = lovelaceValueOf (fees' * 1_000_000)
+      val          = lovelaceValueOf (v * 1_000_000)
 
-      cond0 = tokensMinted ctx $ fromList $ sort $ map (\(bs, p) -> (encoinName bs, polarityToInteger p)) inputs
+      fees'        = abs fees
+      valFees      = lovelaceValueOf (fees' * 1_000_000)
+
+      deposits     = depositMultiplier * sum (map snd inputs)
+      valDeposits  = lovelaceValueOf (deposits * 1_000_000)
+
+      deposits'    = if cond5 then deposits else 0
+      valDeposits' = lovelaceValueOf (deposits' * 1_000_000)
+
+      cond0 = tokensMinted ctx $ fromList inputs
       cond1 = verifyEd25519Signature verifierPKH (hashRedeemer red) sig
-      cond2 = (v + fees' >= 0) || utxoProduced info (\o -> txOutAddress o == changeAddr && txOutValue o `geq` (zero - val - valFees))
+      cond2 = (v + fees' + deposits' >= 0) || utxoProduced info (\o -> txOutAddress o == changeAddr && txOutValue o `geq` (zero - val - valFees - valDeposits'))
       cond3 = utxoReferenced info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` beacon)
 
       vMint = txInfoMint $ scriptContextTxInfo ctx
-      vOuts = map txOutValue $ filterUtxoSpent info (\o -> txOutAddress o == ledgerAddr)
+      vOuts = map txOutValue $ filterUtxoSpent info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` minTxOutValueInLedger)
       vOut  = sum vOuts
-      vIns  = map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == ledgerAddr && isInlineUnit (txOutDatum o))
+      vIns  = map txOutValue $ filterUtxoProduced info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` minTxOutValueInLedger && isInlineUnit (txOutDatum o))
       vIn   = sum vIns
 
-      cond4 = vIn == (vOut + val)         -- Wallet Mode
-      cond5 = vIn == (vOut + vMint + val) -- Ledger Mode
+      cond4 = vIn == (vOut + val)                       -- Wallet Mode
+      cond5 = vIn == (vOut + vMint + val + valDeposits) -- Ledger Mode
 
-      -- TxOuts size limit
-      txOutSize = sort $ map (length . flattenValue) vIns
-      cond6 = null vIns || (all (2 ==) (tail txOutSize) && (head txOutSize <= 2))
-
-      -- ADA value is concentrated in a single TxOut
-      adaVals   = sortBy (flip compare) $ map (getLovelace . fromValue) vIns
-      cond7 = null vIns || all (minAdaTxOutInLedger ==) (tail adaVals)
-
-      -- Only ENCOINS and ADA are allowed in the produced Ledger outputs
-      cond8 = not (any (\s -> s /= adaSymbol && s /= ownCurrencySymbol ctx) (symbols vIn))
+      -- The ENCOINS Ledger output values (only two are allowed) must satisfy conditions on the size and ADA concentration
+      cond6 = checkLedgerOutputValue1 vIns
 
 toEncoinsPolicyParams :: EncoinsProtocolParams -> EncoinsPolicyParams
 toEncoinsPolicyParams par@(_, _, verifierPKH) = (beaconToken par, verifierPKH)

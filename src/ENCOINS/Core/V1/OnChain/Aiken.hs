@@ -20,9 +20,9 @@ import           PlutusTx.AssocMap                  (lookup, keys)
 import           PlutusTx.Prelude
 import           Text.Hex                           (decodeHex)
 
-import           ENCOINS.Core.V1.OnChain.Plutus     (EncoinsRedeemerOnChain, EncoinsProtocolParams, encoinName)
+import           ENCOINS.Core.V1.OnChain.Plutus     (EncoinsRedeemerOnChain, EncoinsProtocolParams, encoinName, toEncoinsPolicyParams)
 import           ENCOINS.Core.V1.OnChain.Aiken.UPLC (ledgerValidatorCheck, encoinsPolicyCheck)
-import           PlutusAppsExtra.Utils.Scripts      (mintingPolicyFromCBOR, validatorFromCBOR)
+import           PlutusAppsExtra.Utils.Scripts      (unsafeParameterizedValidatorFromCBOR, unsafeParameterizedMintingPolicyFromCBOR)
 import           PlutusTx.Builtins                  (serialiseData)
 
 ----------------------------------- ENCOINS Minting Policy ---------------------------------------
@@ -30,10 +30,8 @@ import           PlutusTx.Builtins                  (serialiseData)
 hashRedeemer :: EncoinsRedeemerOnChain -> BuiltinByteString
 hashRedeemer (a, b, c, _) = sha2_256 . serialiseData . toBuiltinData $ (a, b, c)
 
--- encoinsPolicy :: EncoinsProtocolParams -> MintingPolicy
--- encoinsPolicy = fromJust (parametrizedMintingPolicyFromCBOR encoinsPolicyCheck) . toEncoinsPolicyParams
 encoinsPolicy :: EncoinsProtocolParams -> MintingPolicy
-encoinsPolicy = const $ fromJust (mintingPolicyFromCBOR encoinsPolicyCheck)
+encoinsPolicy = unsafeParameterizedMintingPolicyFromCBOR encoinsPolicyCheck . toEncoinsPolicyParams
 
 encoinsPolicyV :: EncoinsProtocolParams -> Versioned MintingPolicy
 encoinsPolicyV = flip Versioned PlutusV2 . encoinsPolicy
@@ -52,10 +50,8 @@ encoinsInValue par = map unTokenName . maybe [] keys . lookup (encoinsSymbol par
 
 ------------------------------------- ENCOINS Ledger Validator --------------------------------------
 
--- ledgerValidator :: EncoinsProtocolParams -> Validator
--- ledgerValidator = fromJust (parametrizedValidatorFromCBOR ledgerValidatorCheck) . encoinsSymbol
 ledgerValidator :: EncoinsProtocolParams -> Validator
-ledgerValidator = const $ fromJust (validatorFromCBOR ledgerValidatorCheck)
+ledgerValidator = unsafeParameterizedValidatorFromCBOR ledgerValidatorCheck . encoinsSymbol
 
 ledgerValidatorV :: EncoinsProtocolParams -> Versioned Validator
 ledgerValidatorV = flip Versioned PlutusV2 . ledgerValidator
