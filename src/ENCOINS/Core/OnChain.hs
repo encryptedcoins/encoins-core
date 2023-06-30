@@ -45,6 +45,7 @@ module ENCOINS.Core.OnChain (
     encoinsStakeValidatorHash,
     -- ENCOINS Ledger Validator
     EncoinsLedgerValidatorParams,
+    Aiken.Aiken(..),
     Aiken.ledgerValidatorCheck,
     Aiken.ledgerValidator,
     Aiken.ledgerValidatorV,

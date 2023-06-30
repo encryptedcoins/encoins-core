@@ -11,31 +11,32 @@
 
 module ENCOINS.Core.V1.OffChain where
 
-import           Control.Monad.State                      (gets, when, mapM_)
+import           Control.Monad.State                      (gets, mapM_, when)
 import           Data.Bifunctor                           (bimap)
 import           Data.Bool                                (bool)
 import           Data.Functor                             (($>), (<$>))
 import           Data.Text                                (pack)
 import           Ledger                                   (DecoratedTxOut (..), _decoratedTxOutAddress, noAdaValue)
 import           Ledger.Ada                               (lovelaceValueOf)
-import           Ledger.Value                             (adaOnlyValue, geq, gt, flattenValue, singleton)
+import           Ledger.Value                             (adaOnlyValue, flattenValue, geq, gt, singleton)
 import           Plutus.V2.Ledger.Api                     hiding (singleton)
 import           PlutusTx.Extra.ByteString                (toBytes)
-import           PlutusTx.Prelude                         hiding (mapM_, mapM, (<$>), (<>))
+import           PlutusTx.Prelude                         hiding (mapM, mapM_, (<$>), (<>))
 import           Prelude                                  (show, (<>))
 import           Text.Hex                                 (encodeHex)
 
 import           ENCOINS.Bulletproofs                     (polarityToInteger)
-import           ENCOINS.Core.V1.OffChain.Fees            (protocolFeeValue, protocolFee)
-import           ENCOINS.Core.V1.OffChain.Modes           (EncoinsMode(..))
 import           ENCOINS.Core.OnChain
+import           ENCOINS.Core.V1.OffChain.Fees            (protocolFee, protocolFeeValue)
+import           ENCOINS.Core.V1.OffChain.Modes           (EncoinsMode (..))
 import           PlutusAppsExtra.Constraints.OffChain
 import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
 import           PlutusAppsExtra.Scripts.OneShotCurrency  (oneShotCurrencyMintTx)
 import           PlutusAppsExtra.Types.Tx                 (TransactionBuilder, TxConstructor (..))
 import           PlutusAppsExtra.Utils.Crypto             (sign)
 import           PlutusAppsExtra.Utils.Datum              (hashedUnit, inlinedUnit)
-import           PlutusAppsExtra.Utils.Value              (unflattenValue, isCurrencyAndAdaOnlyValue, currencyOnlyValue, currencyAndAdaOnlyValue)
+import           PlutusAppsExtra.Utils.Value              (currencyAndAdaOnlyValue, currencyOnlyValue, isCurrencyAndAdaOnlyValue,
+                                                           unflattenValue)
 
 mkEncoinsRedeemerOnChain :: BuiltinByteString -> EncoinsRedeemer -> EncoinsRedeemerOnChain
 mkEncoinsRedeemerOnChain prvKey (par, input, proof, _) =
@@ -193,7 +194,7 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
 
     -- Minting and burning encoins
     let valMint  = sum $ map (uncurry $ singleton (encoinsSymbol par)) inputs
-    tokensMintedTx (encoinsPolicyV par) red valMint
+    tokensMintedTx (encoinsPolicyV par) (Aiken red) valMint
 
     -- Calculate deposits
     let deposits     = depositMultiplier * sum (map snd inputs)

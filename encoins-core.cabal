@@ -104,6 +104,7 @@ test-suite encoins-core-test
     cardano-api                              -any,
     cardano-node-emulator                    -any,
     containers                               -any,
+    data-default                             -any,
     encoins-bulletproofs                     -any,
     encoins-core                             -any,
     generic-arbitrary                        -any,
