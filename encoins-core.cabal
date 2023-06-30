@@ -39,6 +39,7 @@ library
       ENCOINS.Core.V1.OffChain.Modes
       ENCOINS.Core.V1.OnChain.Aiken
       ENCOINS.Core.V1.OnChain.Aiken.UPLC
+      ENCOINS.Core.V1.OnChain.Internal
       ENCOINS.Core.V1.OnChain.Plutus
     build-depends:
       base                          >= 4.9 && < 5,

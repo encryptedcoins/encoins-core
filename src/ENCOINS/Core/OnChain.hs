@@ -52,6 +52,6 @@ module ENCOINS.Core.OnChain (
     Aiken.ledgerValidatorAddress
 ) where
 
-import           ENCOINS.Core.V1.OnChain.Plutus
+import           ENCOINS.Core.V1.OnChain.Internal
 import qualified ENCOINS.Core.V1.OnChain.Aiken as Aiken
 import qualified ENCOINS.Core.V1.OnChain.Aiken.UPLC as Aiken

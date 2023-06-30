@@ -20,7 +20,7 @@ import           PlutusTx.AssocMap                  (lookup, keys)
 import           PlutusTx.Prelude
 import           Text.Hex                           (decodeHex)
 
-import           ENCOINS.Core.V1.OnChain.Plutus     (EncoinsRedeemerOnChain, EncoinsProtocolParams, encoinName, toEncoinsPolicyParams)
+import           ENCOINS.Core.V1.OnChain.Internal   (EncoinsRedeemerOnChain, EncoinsProtocolParams, encoinName, toEncoinsPolicyParams)
 import           ENCOINS.Core.V1.OnChain.Aiken.UPLC (ledgerValidatorCheck, encoinsPolicyCheck)
 import           PlutusAppsExtra.Utils.Scripts      (unsafeParameterizedValidatorFromCBOR, unsafeParameterizedMintingPolicyFromCBOR)
 import           PlutusTx.Builtins                  (serialiseData)
