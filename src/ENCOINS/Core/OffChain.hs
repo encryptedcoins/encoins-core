@@ -25,7 +25,6 @@ module ENCOINS.Core.OffChain (
     makeLedgerValues,
     encoinsSendTx,
     -- ENCOINS Smart Contract
-    makeLedgerValues,
     encoinsBurnTx,
     ledgerModifyTx,
     encoinsTx,
