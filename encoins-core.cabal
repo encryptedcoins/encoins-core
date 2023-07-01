@@ -95,6 +95,7 @@ test-suite encoins-core-test
   Hs-Source-Dirs:       test
   Main-Is:              Main.hs
   Other-Modules:        Gen
+                        Script
                         Tx
   Build-Depends:
     base                                     -any,

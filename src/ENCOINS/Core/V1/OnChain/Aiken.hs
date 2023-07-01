@@ -38,12 +38,6 @@ instance ToData (Aiken EncoinsLedgerValidatorParams) where
 instance ToData (Aiken EncoinsPolicyParams) where
     toBuiltinData (Aiken (val, bbs)) = BuiltinData $ List [toData val, toData bbs]
 
--- instance ToData (Aiken EncoinsInput) where
---     toBuiltinData (Aiken (iVal, inputs)) = BuiltinData $ List [I iVal, Map (bimap toData (I . polarityToInteger) <$> inputs)]
-
--- instance ToData (Aiken EncoinsInputOnChain) where
---     toBuiltinData (Aiken (iVal, inputs)) = BuiltinData $ List [I iVal, Map (bimap toData I <$> inputs)]
-
 instance ToData (Aiken (TxParams, EncoinsInputOnChain, ProofHash)) where
     toBuiltinData (Aiken ((a1, a2, fees), (iVal, inputs), proofHash)) = do
         let a1' = toData a1
