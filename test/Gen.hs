@@ -2,12 +2,17 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE TupleSections              #-}
 
 module Gen where
 
-import           Control.Monad          (replicateM)
-import           Test.QuickCheck        (Arbitrary (..), choose)
+import           Control.Monad        (replicateM)
+import           ENCOINS.Core.OnChain (EncoinsProtocolParams)
+import           Plutus.V2.Ledger.Api (BuiltinByteString)
+import           Test.QuickCheck      (Arbitrary (..), choose, generate)
 
+genEncoinsParams :: BuiltinByteString -> IO EncoinsProtocolParams
+genEncoinsParams verifierPKH = generate $ (,,verifierPKH) <$> arbitrary <*> arbitrary
 class EncoinsRequest a where
     extractRequest :: a -> [Integer]
 
@@ -21,7 +26,7 @@ newtype MintRequest = MintRequest [Integer]
 instance Arbitrary MintRequest where
     arbitrary = do
         MixedRequest req <- arbitrary
-        pure $ MintRequest $ map abs req
+        pure $ MintRequest $ map abs $ filter (/= 0) req
 
 newtype BurnRequest = BurnRequest [Integer]
     deriving (Show, Eq)
@@ -30,7 +35,7 @@ newtype BurnRequest = BurnRequest [Integer]
 instance Arbitrary BurnRequest where
     arbitrary = do
         MintRequest req <- arbitrary
-        pure $ BurnRequest $ map negate req
+        pure $ BurnRequest $ map negate $ filter (/= 0) req
 
 newtype MixedRequest = MixedRequest [Integer]
     deriving (Show, Eq)
