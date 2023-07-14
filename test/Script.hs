@@ -70,7 +70,7 @@ ledgerValidatorTest ledgerParams verifierPKH = do
         ledgerParams
         (ledgerValidator encoinsParams)
         ()
-        (42 :: Integer)
+        ()
         (ScriptContext
             emptyInfo {txInfoRedeemers = PAM.singleton (Minting encoinsCS) (Redeemer (BuiltinData $ Constr 0 []))}
             (Minting encoinsCS))
