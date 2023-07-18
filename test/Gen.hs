@@ -3,12 +3,13 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Gen where
 
 import           Control.Monad              (replicateM)
 import           ENCOINS.Core.OnChain       (EncoinsProtocolParams)
-import           Plutus.V2.Ledger.Api       (BuiltinByteString)
+import           Plutus.V2.Ledger.Api       (BuiltinByteString, TxOutRef (..), TxId (..))
 import           PlutusAppsExtra.Test.Utils (genTxOutRef)
 import           Test.QuickCheck            (Arbitrary (..), choose, generate)
 
@@ -22,7 +23,7 @@ instance EncoinsRequest [Integer] where
     extractRequest = id
 
 newtype MintRequest = MintRequest [Integer]
-    deriving (Show, Eq)
+    deriving (Eq)
     deriving newtype EncoinsRequest
 
 instance Arbitrary MintRequest where
@@ -31,7 +32,7 @@ instance Arbitrary MintRequest where
         pure $ MintRequest $ map abs req
 
 newtype BurnRequest = BurnRequest [Integer]
-    deriving (Show, Eq)
+    deriving (Eq)
     deriving newtype EncoinsRequest
 
 instance Arbitrary BurnRequest where
@@ -40,13 +41,16 @@ instance Arbitrary BurnRequest where
         pure $ BurnRequest $ map negate req
 
 newtype MixedRequest = MixedRequest [Integer]
-    deriving (Show, Eq)
+    deriving (Eq)
     deriving newtype EncoinsRequest
 
 instance Arbitrary MixedRequest where
     arbitrary = fmap MixedRequest $ do
-        l <- choose (1,5)
+        l <- choose (1, 5)
         replicateM l $ do
             ada <- choose (1, 100)
             b <- arbitrary
             pure $ if b then ada else negate ada
+
+instance {-# OVERLAPPABLE #-} EncoinsRequest a => Show a where
+    show req = show (extractRequest req) <> "(" <> show (sum $ extractRequest req) <> ")"
