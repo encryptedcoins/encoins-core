@@ -213,5 +213,5 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
         utxoProducedTx addrRelay    valFee (Just inlinedUnit)
         utxoProducedTx addrTreasury valFee (Just inlinedUnit)
         -- NOTE: withdrawing to a Plutus Script address is not possible
-        when (abs v - fees > 0) $
+        when (abs v - fees - deposits' > 0) $
             utxoProducedTx changeAddr (valWithdraw - valFee - valFee - valDeposits') Nothing
