@@ -95,6 +95,7 @@ test-suite encoins-core-test
   Hs-Source-Dirs:       test
   Main-Is:              Main.hs
   Other-Modules:        Gen
+                        Internal
                         Script
                         Tx
   Build-Depends:
@@ -111,6 +112,7 @@ test-suite encoins-core-test
     generic-arbitrary                        -any,
     hex-text                                 -any,
     hspec                                    -any,
+    lens                                     -any,
     mtl                                      -any,
     plutus-apps-extra                        -any,
     plutus-apps-extra-test-utils             -any,

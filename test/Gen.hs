@@ -12,6 +12,7 @@ import           ENCOINS.Core.OnChain       (EncoinsProtocolParams)
 import           Plutus.V2.Ledger.Api       (BuiltinByteString, TxOutRef (..), TxId (..))
 import           PlutusAppsExtra.Test.Utils (genTxOutRef)
 import           Test.QuickCheck            (Arbitrary (..), choose, generate)
+import GHC.Exts (IsList)
 
 genEncoinsParams :: BuiltinByteString -> IO EncoinsProtocolParams
 genEncoinsParams verifierPKH = (,,verifierPKH) <$> genTxOutRef <*> genTxOutRef
@@ -24,7 +25,7 @@ instance EncoinsRequest [Integer] where
 
 newtype MintRequest = MintRequest [Integer]
     deriving (Eq)
-    deriving newtype EncoinsRequest
+    deriving newtype (EncoinsRequest, IsList)
 
 instance Arbitrary MintRequest where
     arbitrary = do
@@ -33,7 +34,7 @@ instance Arbitrary MintRequest where
 
 newtype BurnRequest = BurnRequest [Integer]
     deriving (Eq)
-    deriving newtype EncoinsRequest
+    deriving newtype (EncoinsRequest, IsList)
 
 instance Arbitrary BurnRequest where
     arbitrary = do
@@ -42,7 +43,7 @@ instance Arbitrary BurnRequest where
 
 newtype MixedRequest = MixedRequest [Integer]
     deriving (Eq)
-    deriving newtype EncoinsRequest
+    deriving newtype (EncoinsRequest, IsList)
 
 instance Arbitrary MixedRequest where
     arbitrary = fmap MixedRequest $ do

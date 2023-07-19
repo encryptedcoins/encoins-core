@@ -1,234 +1,127 @@
 {-# LANGUAGE ConstraintKinds     #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE ImplicitParams      #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE NumericUnderscores  #-}
 {-# LANGUAGE OverloadedLists     #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE ViewPatterns        #-}
--- {-# OPTIONS_GHC -Wall #-}
 
 module Tx where
 
-import           Cardano.Api                              (NetworkId (..))
-import           Cardano.Node.Emulator                    (Params (..))
-import           Control.Monad                            (replicateM)
-import           Control.Monad.State                      (MonadIO (..), modify)
-import           Data.Aeson                               (FromJSON (..), eitherDecodeFileStrict, genericParseJSON)
-import           Data.Aeson.Casing                        (aesonPrefix, snakeCase)
-import           Data.Bifunctor                           (Bifunctor(..))
-import           Data.Maybe                               (fromJust)
-import           ENCOINS.Core.OffChain                    (EncoinsMode (..), protocolFee, mkEncoinsRedeemerOnChain, encoinsTx)
-import           ENCOINS.Core.OnChain                     (EncoinsProtocolParams, TxParams, encoinsSymbol, ledgerValidatorAddress,
-                                                           encoinsPolicy, ledgerValidatorHash, ledgerValidator, encoinsStakeValidator,
-                                                           encoinsStakeValidatorHash, stakeOwnerToken, beaconAssetClass)
-import           ENCOINS.BaseTypes                        (MintingPolarity(..))
-import           ENCOINS.Crypto.Field                     (toFieldElement)
-import           ENCOINS.Bulletproofs                     (Secret(..), fromSecret, parseBulletproofParams, bulletproof)
-import           GHC.Generics                             (Generic)
-import           Gen                                      (BurnRequest, EncoinsRequest (..), MintRequest, MixedRequest)
-import           Ledger                                   (Address (..), CurrencySymbol, DecoratedTxOut (..), Language (..),
-                                                           StakeValidatorHash (..), TxOutRef (..), Validator (..),
-                                                           ValidatorHash (..), Value, Versioned (..), unMintingPolicyScript,
-                                                           unStakeValidatorScript, unValidatorScript, validatorHash)
-import           Ledger.Ada                               (adaValueOf)
-import           Ledger.Value                             (assetClassValue, Value (..), TokenName (..))
-import           Plutus.V2.Ledger.Api                     (Credential (..), StakingCredential (..))
-import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidator, alwaysFalseValidatorHash, alwaysFalseValidatorV)
-import           PlutusAppsExtra.Test.Utils               (TxTestM, buildTx, genTxOutRef, getProtocolParams, runTxTest,
-                                                           withAdaUtxo, withValueUtxo)
-import           PlutusAppsExtra.Utils.Address            (bech32ToAddress)
-import           PlutusAppsExtra.Utils.Datum              (inlinedUnitInTxOut)
-import qualified PlutusTx.AssocMap                        as PAM
-import           PlutusTx.Builtins                        (BuiltinByteString, sha2_256)
-import           PlutusTx.Extra.ByteString                (toBytes)
-import           System.Random                            (randomIO)
-import           Test.Hspec                               (Expectation, context, describe, hspec, it, parallel)
-import           Test.QuickCheck                          (property, withMaxSuccess)
-
-type HasTxTestEnv =
-    ( ?pParams            :: Params
-    , ?mode               :: EncoinsMode
-    , ?ledgerAddr         :: Address
-    , ?verifierPrvKey     :: BuiltinByteString
-    , ?encoinsCS          :: CurrencySymbol
-    , ?encoinsParams      :: EncoinsProtocolParams
-    )
-
-data TestConfig = TestConfig
-    { tcProtocolParamsFile :: FilePath
-    , tcVerifierPkhFile    :: FilePath
-    , tcVerifierPrvKeyFile :: FilePath
-    , tcNetworkId          :: NetworkId
-    } deriving (Show, Generic)
-
-instance FromJSON TestConfig where
-   parseJSON = genericParseJSON $ aesonPrefix snakeCase
+import           Cardano.Node.Emulator         (Params (..))
+import           Control.Lens
+import           Control.Lens.Tuple            (_2, _3)
+import           Control.Monad.State           (evalStateT, gets, modify, when)
+import           Data.Aeson                    (eitherDecodeFileStrict)
+import qualified Data.ByteString               as BS
+import           Data.Either                   (isRight)
+import qualified Data.Map                      as Map
+import           Data.Maybe                    (fromJust)
+import           ENCOINS.Core.OffChain         (EncoinsMode (..), encoinsTx)
+import           ENCOINS.Core.OnChain          (beaconAssetClass, encoinsStakeValidatorHash, ledgerValidatorAddress,
+                                                minAdaTxOutInLedger, minTxOutValueInLedger, stakeOwnerToken)
+import           Gen                           (BurnRequest, EncoinsRequest (..), MintRequest, MixedRequest)
+import           Internal                      (TestConfig (..))
+import           Ledger                        (Address (..), DecoratedTxOut (..), StakeValidatorHash (..), TxId (..),
+                                                TxOutRef (..), ValidatorHash (..), Value, _decoratedTxOutAddress,
+                                                decoratedTxOutValue)
+import           Ledger.Ada                    (lovelaceValueOf)
+import           Ledger.Value                  (assetClassValue, scale)
+import qualified Ledger.Value                  as Value
+import           Plutus.V2.Ledger.Api          (Credential (..), StakingCredential (..), toBuiltin)
+import           Plutus.V2.Ledger.Contexts     (TxInfo (..))
+import           PlutusAppsExtra.Test.Utils    (TxTestM, buildTx, getProtocolParams, runTxTest)
+import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
+import           PlutusAppsExtra.Utils.Datum   (inlinedUnitInTxOut)
+import           PlutusTx.Builtins             (BuiltinByteString)
+import           Script                        (TestEnv (..), genTestEnv)
+import           Test.Hspec                    (Expectation, context, describe, hspec, it, parallel, shouldSatisfy)
+import           Test.QuickCheck               (property)
 
 txSpec :: IO ()
 txSpec = do
     TestConfig{..} <- either error id <$> eitherDecodeFileStrict "test/testConfig.json"
     verifierPKH    <- either error id <$> eitherDecodeFileStrict tcVerifierPkhFile
     verifierPrvKey <- either error id <$> eitherDecodeFileStrict tcVerifierPrvKeyFile
-    p              <- getProtocolParams tcProtocolParamsFile tcNetworkId
-
-    let refBeacon     = TxOutRef "e4d0238694cbd5138ef39c36e89ae6262a0326f02a621b6cf0942ebc330db011" 0
-        refStakeOwner = TxOutRef "d58632be7770afd971564ea6793b8451f3ecfacb7597f6f2f125de01c9e5ae66" 0
-        encoinsParams = (refStakeOwner, refBeacon, verifierPKH)
-        ledgerAddr    = ledgerValidatorAddress encoinsParams
-
-    let ?pParams         = p
-        ?ledgerAddr      = ledgerAddr
-        ?verifierPrvKey  = verifierPrvKey
-        ?encoinsParams   = encoinsParams
-        ?encoinsCS       = encoinsSymbol encoinsParams
-
-    hspec $ parallel $ describe "encoinsTx" $
-
+    pParams        <- getProtocolParams tcProtocolParamsFile tcNetworkId
+    let withTxTest :: forall req. EncoinsRequest req => EncoinsMode -> req -> Expectation
+        withTxTest = encoinsTxTest pParams verifierPKH verifierPrvKey
+    hspec $ parallel $ describe "encoinsTx" $ do
         context "fixed utxos" $ do
-
             context "wallet mode" $ do
-                let ?mode = WalletMode
-
-                it "mint" $ withMaxSuccess 10 $ property $ encoinsTxTest @MintRequest $ do
-                    withSetup encoinsParams
-                    withAdaUtxo (?reqSum + 2) ?changeAddr
-
-                it "burn" $ withMaxSuccess 10 $ property $ encoinsTxTest @BurnRequest $ do
-                    withSetup encoinsParams
-                    withValueUtxo ?burnVal ?changeAddr
-                    withAdaUtxo (negate ?reqSum + 2) ?ledgerAddr
-
-                it "mix" $ withMaxSuccess 10 $ property $ encoinsTxTest @MixedRequest $ do
-                    withSetup encoinsParams
-                    withValueUtxo ?burnVal ?changeAddr
-                    withAdaUtxo (abs ?reqSum + 2) $ if ?reqSum > 0 then ?changeAddr else ?ledgerAddr
-                    withAdaUtxo 2 ?ledgerAddr
-                    withAdaUtxo 2 ?changeAddr
-
+                it "mint" $ property $ withTxTest @MintRequest  WalletMode
+                it "burn" $ property $ withTxTest @BurnRequest  WalletMode 
+                it "mix"  $ property $ withTxTest @MixedRequest WalletMode
             context "ledger mode" $ do
-                let ?mode = LedgerMode
+                it "mint" $ property $ withTxTest @MintRequest  LedgerMode
+                it "burn" $ property $ withTxTest @BurnRequest  LedgerMode
+                it "mix"  $ property $ withTxTest @MixedRequest LedgerMode
 
-                it "mint" $ withMaxSuccess 10 $ property $ encoinsTxTest @MintRequest $ do
-                    withSetup encoinsParams
-                    withAdaUtxo (?reqSum + 2) ?changeAddr
+encoinsTxTest :: EncoinsRequest req =>
+    Params -> BuiltinByteString -> BuiltinByteString -> EncoinsMode -> req -> Expectation
+encoinsTxTest pParams verifierPKH verifierPrvKey mode req = do
+        TestEnv{..} <- genTestEnv verifierPKH verifierPrvKey mode req
+        let addrRelay    = fromJust $ bech32ToAddress "addr_test1qqmg05vsxgf04lke32qkaqt09rt690qzulujazhk39xtkcqnt9a4spnfrrlpp7puw2lcx2zudf49ewyza4q9ha08qhdqheec82"
+            addrTreasury = fromJust $ bech32ToAddress "addr_test1qzdzazh6ndc9mm4am3fafz6udq93tmdyfrm57pqfd3mgctgu4v44ltv85gw703f2dse7tz8geqtm4n9cy6p3lre785cqutvf6a"
+        runTxTest $ do
+            addTxInputs mode TestEnv{..}
+            addSetupTokens TestEnv{..}
+            addAdaTo maxTxFee teChangeAddr
+            buildTx pParams Nothing teChangeAddr [encoinsTx (addrRelay, addrTreasury) teEncoinsParams teRedeemer mode]
+    where
+        addTxInputs WalletMode TestEnv{..} = do
+            when (teV + teFees + teDeposits > 0) $ addAdaTo (teV + teFees + teDeposits) teChangeAddr
+            when (teV < 2) $ addLovelaceTo ((max 0 (-teV) * 1_000_000) + minAdaTxOutInLedger) (ledgerValidatorAddress teEncoinsParams)
+            addValueTo (fst $ Value.split $ txInfoMint teTxInfo) teChangeAddr
+        addTxInputs LedgerMode TestEnv{..} = do
+            when (teV + teDeposits < 0) $ addLovelaceTo ((-teV - teDeposits) * 1_000_000 + minAdaTxOutInLedger) (ledgerValidatorAddress teEncoinsParams)
+            when (teV + teFees + teDeposits > 0) $ addAdaTo (teV + teFees + teDeposits) teChangeAddr
+            addValueTo (fst (Value.split $ txInfoMint teTxInfo) <> scale 2 minTxOutValueInLedger) (ledgerValidatorAddress teEncoinsParams)
+        maxTxFee = 4
 
-                it "burn" $ withMaxSuccess 10 $ property $ encoinsTxTest @BurnRequest $ do
-                    withSetup encoinsParams
-                    withAdaUtxo (negate ?reqSum + 2) ?ledgerAddr
-                    withValueUtxo ?burnVal ?ledgerAddr
+addValueTo :: Value -> Address -> TxTestM ()
+addValueTo v addr = gets (Map.toList . Map.filter ((== addr) . _decoratedTxOutAddress)) >>= \case
+    (ref, txOut):_ -> modify $ Map.insert ref (txOut & decoratedTxOutValue %~ (<> v))
+    _              -> do
+        let out = case addr of
+                (Address (PubKeyCredential pkh) mbSc) -> PublicKeyDecoratedTxOut pkh mbSc v Nothing Nothing
+                (Address (ScriptCredential vh)  mbSc) -> ScriptDecoratedTxOut vh mbSc v inlinedUnitInTxOut Nothing Nothing
+        ref <- genStateTxOutRef
+        modify (Map.singleton ref out <>)
 
-                it "mix" $  withMaxSuccess 10 $ property $ encoinsTxTest @MixedRequest $ do
-                    withSetup encoinsParams
-                    withAdaUtxo (abs ?reqSum + 2) $ if ?reqSum > 0 then ?changeAddr else ?ledgerAddr
-                    withValueUtxo ?burnVal ?ledgerAddr
-                    withAdaUtxo (abs ?reqSum + 2) ?changeAddr
-                    withAdaUtxo (abs ?reqSum + 2) ?ledgerAddr
+addLovelaceTo :: Integer -> Address -> TxTestM ()
+addLovelaceTo i = addValueTo (lovelaceValueOf i)
 
-type HasEncoinsTxTestEnv =
-    ( ?changeAddr :: Address
-    , ?req        :: [Integer]
-    , ?reqSum     :: Integer
-    , ?burnVal    :: Value
-    , ?collateral :: Maybe TxOutRef
-    )
+addAdaTo :: Integer -> Address -> TxTestM ()
+addAdaTo i = addLovelaceTo (i * 1_000_000)
 
-encoinsTxTest :: HasTxTestEnv => EncoinsRequest req => (HasEncoinsTxTestEnv => TxTestM ()) -> req -> Expectation
-encoinsTxTest addUtxos (extractRequest -> req) = do
-    let changeAddr = fromJust $ bech32ToAddress "addr_test1qqmg05vsxgf04lke32qkaqt09rt690qzulujazhk39xtkcqnt9a4spnfrrlpp7puw2lcx2zudf49ewyza4q9ha08qhdqheec82"
-        collateral = Nothing
-        addrRelay = fromJust $ bech32ToAddress "addr_test1qqmg05vsxgf04lke32qkaqt09rt690qzulujazhk39xtkcqnt9a4spnfrrlpp7puw2lcx2zudf49ewyza4q9ha08qhdqheec82"
-        addrTreasury = fromJust $ bech32ToAddress "addr_test1qzdzazh6ndc9mm4am3fafz6udq93tmdyfrm57pqfd3mgctgu4v44ltv85gw703f2dse7tz8geqtm4n9cy6p3lre785cqutvf6a"
-
-    gammas <- replicateM (length req) randomIO
-    randomness <- randomIO
-    bulletproofSetup <- randomIO
-    let ps            = map (\i -> if i < 0 then Burn else Mint) req
-        secrets       = zipWith (\i g -> Secret g (toFieldElement i)) req gammas
-        v             = sum $ map (fst . fromSecret bulletproofSetup) secrets
-        par           = (?ledgerAddr, changeAddr, 2*protocolFee ?mode v) :: TxParams
-        bp            = parseBulletproofParams $ sha2_256 $ toBytes par
-        inputs        = zipWith (\(_, bs) p -> (bs, p)) (map (fromSecret bulletproofSetup) secrets) ps
-        (_, _, proof) = bulletproof bulletproofSetup bp secrets ps randomness
-        signature  = ""
-        red = (par, (v, inputs), proof, signature)
-        redOnChain = mkEncoinsRedeemerOnChain ?verifierPrvKey red
-
-    let ?changeAddr = changeAddr
-        ?collateral = Nothing
-        ?req        = req
-        ?reqSum     = sum req
-        ?burnVal    = Value $ PAM.singleton ?encoinsCS $ PAM.fromList $ bimap TokenName (const 1) <$> filter ((== Burn) . snd) inputs
-
-    runTxTest $ do
-        addUtxos
-        buildTx ?pParams collateral changeAddr [encoinsTx (addrRelay, addrTreasury) ?encoinsParams redOnChain ?mode]
-
-withSetup :: EncoinsProtocolParams -> TxTestM ()
-withSetup encoinsParams = do
-    ref <- liftIO genTxOutRef
-    modify (<> [(ref, ScriptDecoratedTxOut
-        (alwaysFalseValidatorHash 20)
-        Nothing
-        (adaValueOf 2)
-        inlinedUnitInTxOut
-        (Just $ Versioned (getValidator $ alwaysFalseValidator 20) PlutusV2)
-        (Just $ alwaysFalseValidatorV 20)
-        )])
-
-    -- Post encoins policy
-    ref <- liftIO genTxOutRef
-    modify (<> [(ref, ScriptDecoratedTxOut
-        (validatorHash $ flip Versioned PlutusV2 $ Validator $ unMintingPolicyScript $ encoinsPolicy encoinsParams)
-        Nothing
-        (adaValueOf 2)
-        inlinedUnitInTxOut
-        (Just $ flip Versioned PlutusV2 $ unMintingPolicyScript $ encoinsPolicy encoinsParams)
-        (Just $ alwaysFalseValidatorV 20)
-        )])
-
-    -- Post ledger validator
-    ref <- liftIO genTxOutRef
-    modify (<> [(ref, ScriptDecoratedTxOut
-        (ledgerValidatorHash encoinsParams)
-        (let vh = ledgerValidatorHash encoinsParams in Just $ StakingHash $ ScriptCredential vh)
-        (adaValueOf 2)
-        inlinedUnitInTxOut
-        (Just $ flip Versioned PlutusV2 $ unValidatorScript $ ledgerValidator encoinsParams)
-        (Just $ flip Versioned PlutusV2 $ ledgerValidator encoinsParams)
-        )])
-
-    -- Post stake validator
-    ref <- liftIO genTxOutRef
-    modify (<> [(ref, ScriptDecoratedTxOut
-        (validatorHash $ flip Versioned PlutusV2 $ Validator $ unStakeValidatorScript $ encoinsStakeValidator encoinsParams)
-        Nothing
-        (adaValueOf 2)
-        inlinedUnitInTxOut
-        (Just $ flip Versioned PlutusV2 $ unStakeValidatorScript $ encoinsStakeValidator encoinsParams)
-        (Just $ alwaysFalseValidatorV 20)
-        )])
-
+addSetupTokens :: TestEnv -> TxTestM ()
+addSetupTokens TestEnv{..} = do
     -- Set stake owner token
-    modify (<> [((\(a, _, _) -> a) encoinsParams, ScriptDecoratedTxOut
-        (let Address (ScriptCredential vh) _ = ledgerValidatorAddress encoinsParams in vh)
-        (let StakeValidatorHash vh = encoinsStakeValidatorHash encoinsParams
+    modify (<> [(teEncoinsParams ^. _1, ScriptDecoratedTxOut
+        (let Address (ScriptCredential vh) _ = ledgerValidatorAddress teEncoinsParams in vh)
+        (let StakeValidatorHash vh = encoinsStakeValidatorHash teEncoinsParams
          in Just $ StakingHash $ ScriptCredential $ ValidatorHash vh)
-        (stakeOwnerToken encoinsParams)
+        (stakeOwnerToken teEncoinsParams)
         inlinedUnitInTxOut
         Nothing
         Nothing
         )])
 
     -- Set beacon token
-    modify (<> [((\(_, b, _) -> b) encoinsParams, ScriptDecoratedTxOut
-        (let Address (ScriptCredential vh) _ = ledgerValidatorAddress encoinsParams in vh)
-        (let StakeValidatorHash vh = encoinsStakeValidatorHash encoinsParams
-         in Just $ StakingHash $ ScriptCredential $ ValidatorHash vh)
-        (assetClassValue (beaconAssetClass encoinsParams) 1 <> adaValueOf 2)
+    let Address (ScriptCredential vh) (Just (StakingHash vh')) = ledgerValidatorAddress teEncoinsParams
+    modify (<> [(teEncoinsParams ^.  _2, ScriptDecoratedTxOut
+        vh
+        (Just $ StakingHash vh')
+        (assetClassValue (beaconAssetClass teEncoinsParams) 1)
         inlinedUnitInTxOut
         Nothing
         Nothing
         )])
+
+genStateTxOutRef :: TxTestM TxOutRef
+genStateTxOutRef = do
+    i <- gets length
+    pure $ TxOutRef (TxId . toBuiltin $ BS.concat $ replicate 31 (BS.singleton 0) <> [BS.singleton (fromIntegral i)]) 0
