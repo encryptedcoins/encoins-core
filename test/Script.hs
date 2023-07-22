@@ -1,16 +1,13 @@
-{-# LANGUAGE NumericUnderscores  #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE RecordWildCards     #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
-{-# LANGUAGE ViewPatterns        #-}
+{-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE TupleSections      #-}
 
 module Script where
 
 import           Cardano.Api                (NetworkId (..), NetworkMagic (..))
 import           Cardano.Node.Emulator      (Params (..), pParamsFromProtocolParams)
-import           Control.Monad              (replicateM)
+import           Control.Monad              (forM_, replicateM)
 import           Data.Aeson                 (decode, eitherDecodeFileStrict)
 import           Data.Bifunctor             (Bifunctor (..))
 import           Data.ByteString.Lazy       (readFile)
@@ -23,43 +20,42 @@ import           ENCOINS.Bulletproofs       (Secret (Secret), bulletproof, fromS
 import           ENCOINS.Core.OffChain      (EncoinsMode (..), mkEncoinsRedeemerOnChain, protocolFee)
 import           ENCOINS.Core.OnChain
 import           ENCOINS.Crypto.Field       (toFieldElement)
-import           Gen                        (BurnRequest (..), EncoinsRequest (..), MintRequest (..), MixedRequest, genEncoinsParams)
+import           Internal                   (EncoinsRequest, TestSpecification (..), extractRequest, genEncoinsParams, genRequest,
+                                             getSpecifications, requestMode)
 import           Ledger.Ada                 (lovelaceValueOf)
 import           Ledger.Value               (adaOnlyValue, isZero, leq)
-import           Plutus.V2.Ledger.Api
+import           Plutus.V2.Ledger.Api       (Address, BuiltinByteString, BuiltinData (..), CurrencySymbol, Data (..), Datum (..),
+                                             OutputDatum (..), Redeemer (Redeemer), ScriptContext (..), ScriptPurpose (..),
+                                             ToData (..), TokenName (..), TxId (..), TxInInfo (..), TxInfo (..), TxOut (..),
+                                             TxOutRef (..), Value (..), singleton)
 import           PlutusAppsExtra.Test.Utils (emptyInfo, genPubKeyAddress, testMintingPolicy, testValidator)
 import qualified PlutusTx.AssocMap          as PAM
 import           PlutusTx.Extra.ByteString  (ToBuiltinByteString (..))
 import           PlutusTx.Prelude           (Group (inv), sha2_256, zero)
 import           Prelude                    hiding (readFile)
 import           System.Random              (randomIO)
-import           Test.Hspec                 (Expectation, describe, hspec, it)
-import           Test.QuickCheck            (Testable (property))
+import           Test.Hspec                 (Expectation, context, describe, hspec, it)
+import           Test.QuickCheck            (Property, Testable (property), forAll)
 
 runScriptTest :: IO ()
 runScriptTest = do
-    pp <- fromJust . decode <$> readFile "test/protocol-parameters.json"
-    verifierPrvKey <- either error id <$> eitherDecodeFileStrict "test/verifierPrvKey.json"
-    verifierPKH    <- either error id <$> eitherDecodeFileStrict "test/verifierPKH.json"
+    pp                  <- fromJust . decode <$> readFile "test/protocol-parameters.json"
+    verifierPrvKey      <- either error id <$> eitherDecodeFileStrict "test/verifierPrvKey.json"
+    verifierPKH         <- either error id <$> eitherDecodeFileStrict "test/verifierPKH.json"
+    testSpecsifications <- getSpecifications
     let networkId = Testnet $ NetworkMagic 1
         ledgerParams = Params def (pParamsFromProtocolParams pp) networkId
+        testMp =  mintingPolicyTest ledgerParams verifierPKH verifierPrvKey
 
-    hspec $ describe "Script tests" $ do
-
-        it "Ledger validator" $ ledgerValidatorTest ledgerParams verifierPKH
-
-        describe "Minting policy" $ do
-            let withMPTest :: forall req. EncoinsRequest req => EncoinsMode -> req -> Expectation
-                withMPTest = mintingPolicyTest ledgerParams verifierPKH verifierPrvKey
-            describe "Wallet mode" $ do
-                it "Mint" $ property $ withMPTest @MintRequest  WalletMode
-                it "Burn" $ property $ withMPTest @BurnRequest  WalletMode
-                it "Mix"  $ property $ withMPTest @MixedRequest WalletMode
-            describe "Ledger mode" $ do
-                it "Mint" $ property $ withMPTest @MintRequest  LedgerMode
-                it "Burn" $ property $ withMPTest @BurnRequest  LedgerMode $ BurnRequest [-4]
-                it "Burn" $ property $ withMPTest @BurnRequest  LedgerMode
-                it "Mix"  $ property $ withMPTest @MixedRequest LedgerMode
+    hspec $ describe "script tests" $ do
+        
+        it "ledger validator" $ ledgerValidatorTest ledgerParams verifierPKH
+        
+        context "minting policy" $ do
+            forM_ testSpecsifications $ \(name, tSpec) -> do
+                context (name <> ":") $ context (show tSpec) $ do
+                    it "wallet mode" $ testMp WalletMode tSpec
+                    it "ledger mode" $ testMp LedgerMode tSpec
 
 ledgerValidatorTest :: Params -> BuiltinByteString -> Expectation
 ledgerValidatorTest ledgerParams verifierPKH = do
@@ -74,38 +70,54 @@ ledgerValidatorTest ledgerParams verifierPKH = do
             emptyInfo {txInfoRedeemers = PAM.singleton (Minting encoinsCS) (Redeemer (BuiltinData $ Constr 0 []))}
             (Minting encoinsCS))
 
-mintingPolicyTest :: forall req. EncoinsRequest req => Params -> BuiltinByteString -> BuiltinByteString -> EncoinsMode-> req -> Expectation
-mintingPolicyTest ledgerParams verifierPKH verifierPrvKey mode req = do
-    TestEnv{..} <- genTestEnv verifierPKH verifierPrvKey mode req
-    let encoinsCs = encoinsSymbol teEncoinsParams
-    testMintingPolicy
-        ledgerParams
-        (encoinsPolicy teEncoinsParams)
-        (Aiken teRedeemer)
-        (ScriptContext
-            teTxInfo
-            (Minting encoinsCs))
+mintingPolicyTest :: Params -> BuiltinByteString -> BuiltinByteString -> EncoinsMode -> TestSpecification -> Property
+mintingPolicyTest ledgerParams verifierPKH verifierPrvKey mode TestSpecification{..} =
+    property $ forAll (genRequest tsMaxAdaInSingleToken mode) $ \encoinsRequest -> do
+        TestEnv{..} <- genTestEnv verifierPKH verifierPrvKey encoinsRequest
+        let encoinsCs = encoinsSymbol teEncoinsParams
+            txInfo = teTxInfo
+                { txInfoInputs  = mconcat
+                    [txInfoInputs  teTxInfo, walletSpecifiedInputs  teChangeAddr, ledgerSpecifiedInputs teLedgerAddr encoinsCs]
+                , txInfoOutputs = mconcat
+                    [txInfoOutputs teTxInfo, walletSpecifiedOutputs teChangeAddr, ledgerSpecifiedOutputs teLedgerAddr encoinsCs]
+                }
+        testMintingPolicy
+            ledgerParams
+            (encoinsPolicy teEncoinsParams)
+            (Aiken teRedeemer)
+            (ScriptContext
+                txInfo
+                (Minting encoinsCs))
+    where
+        walletSpecifiedOutputs addr = replicate tsWalletUtxosAmt $ mkWalletTxOut addr (lovelaceValueOf $ tsAdaInWalletUtxo * 1_000_000)
+        walletSpecifiedInputs addr = map (TxInInfo ref) $ walletSpecifiedOutputs addr
+        ledgerSpecifiedOutputs addr cs = 
+            let v = minTxOutValueInLedger <> singleton cs "0000000000000000000000000000000000000000000000000000000000000000" 1
+            in replicate tsLedgerUtxosAmt $ mkLedgerTxOut addr v
+        ledgerSpecifiedInputs addr cs = map (TxInInfo ref) $ ledgerSpecifiedOutputs addr cs
 
 data TestEnv = TestEnv
     { teTxInfo        :: TxInfo
     , teReq           :: [Integer]
     , teEncoinsParams :: EncoinsProtocolParams
     , teRedeemer      :: EncoinsRedeemerOnChain
+    , teLedgerAddr    :: Address
     , teChangeAddr    :: Address
     , teV             :: Integer
     , teFees          :: Integer
     , teDeposits      :: Integer
     }
 
-genTestEnv :: forall req. EncoinsRequest req =>
-    BuiltinByteString -> BuiltinByteString -> EncoinsMode-> req -> IO TestEnv
-genTestEnv verifierPKH verifierPrvKey mode (extractRequest -> req) = do
+genTestEnv :: BuiltinByteString -> BuiltinByteString -> EncoinsRequest -> IO TestEnv
+genTestEnv verifierPKH verifierPrvKey encoinsRequest = do
+    let req = extractRequest encoinsRequest
     encoinsParams <- genEncoinsParams verifierPKH
     gammas <- replicateM (length req) randomIO
     randomness <- randomIO
     changeAddress <- genPubKeyAddress
     bulletproofSetup <- randomIO
-    let ledgerAddress = ledgerValidatorAddress encoinsParams
+    let mode          = requestMode encoinsRequest
+        ledgerAddress = ledgerValidatorAddress encoinsParams
         encoinsCs = encoinsSymbol encoinsParams
 
         ps            = map (\i -> if i < 0 then Burn else Mint) req
@@ -145,7 +157,7 @@ genTestEnv verifierPKH verifierPrvKey mode (extractRequest -> req) = do
             | mode == WalletMode          = [mkLedgerTxOut ledgerAddress minTxOutValueInLedger]
             | otherwise                   =  mkLedgerTxOut ledgerAddress <$> ledgerOutVal'
 
-        waletTokensIn = if mode == WalletMode then inv $ mkEncoinsValue encoinsCs $ map (negate <$>) $ filter ((== (-1)) . snd) mint else mempty
+        waletTokensIn = if mode == WalletMode then mkEncoinsValue encoinsCs $ map (negate <$>) $ filter ((== (-1)) . snd) mint else mempty
         walletIns
             | v + fees + deposits > 0 = [mkWalletTxIn changeAddress $ lovelaceValueOf ((v + fees + deposits) * 1_000_000) <> waletTokensIn]
             | otherwise               = [mkWalletTxIn changeAddress waletTokensIn]
@@ -166,6 +178,7 @@ genTestEnv verifierPKH verifierPrvKey mode (extractRequest -> req) = do
         , teReq           = req
         , teEncoinsParams = encoinsParams
         , teRedeemer      = redOnChain
+        , teLedgerAddr    = ledgerAddress
         , teChangeAddr    = changeAddress
         , teV             = v
         , teFees          = fees

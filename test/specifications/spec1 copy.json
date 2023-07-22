@@ -1,0 +1,5 @@
+{ "wallet_utxos_amt"        : 100000
+, "ada_in_wallet_utxo"      : 100000000
+, "ledger_utxos_amt"        : 100000
+, "max_ada_in_single_token" : 100000000
+}
