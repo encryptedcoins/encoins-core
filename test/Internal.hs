@@ -4,7 +4,6 @@
 
 module Internal where
 
--- import           Cardano.Node.Emulator.Params ()
 import           Control.Monad                (forM, replicateM)
 import           Data.Aeson                   (FromJSON (..), decodeFileStrict, genericParseJSON)
 import           Data.Aeson.Casing            (aesonPrefix, snakeCase)
@@ -36,10 +35,11 @@ data TestSpecification = TestSpecification
     , tsAdaInWalletUtxo     :: Integer
     , tsLedgerUtxosAmt      :: Int
     , tsMaxAdaInSingleToken :: Integer
+    , tsShouldFail          :: Bool
     } deriving (Show, Generic)
 
 instance Default TestSpecification where
-    def = TestSpecification 0 0 0 1000
+    def = TestSpecification 0 0 0 1000 False
 
 instance FromJSON TestSpecification where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
