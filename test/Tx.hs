@@ -28,7 +28,7 @@ import           Ledger.Value                  (assetClassValue, scale)
 import qualified Ledger.Value                  as Value
 import           Plutus.V2.Ledger.Api          (Credential (..), toBuiltin)
 import           Plutus.V2.Ledger.Contexts     (TxInfo (..))
-import           PlutusAppsExtra.Test.Utils    (TxTestM, buildTx, getProtocolParams)
+import           PlutusAppsExtra.Test.Utils    (TxTestM, buildTx, getProtocolParams, isOutOfResoursesError)
 import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
 import           PlutusAppsExtra.Utils.Datum   (inlinedUnitInTxOut)
 import           PlutusTx.Builtins             (BuiltinByteString)
@@ -63,7 +63,7 @@ encoinsTxTest pParams verifierPKH verifierPrvKey mode TestSpecification{..} = pr
         then res `shouldSatisfy` isRight
         else case res of
             -- A test that should have failed, and it did
-            Left  _ -> res `shouldSatisfy` isLeft
+            Left  _ -> res `shouldSatisfy` isOutOfResoursesError
             -- A test that should have failed, but it didn't
             Right _ -> discard 
     where

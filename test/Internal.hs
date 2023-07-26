@@ -4,21 +4,20 @@
 
 module Internal where
 
-import           Control.Monad                (forM, replicateM)
-import           Data.Aeson                   (FromJSON (..), decodeFileStrict, genericParseJSON)
-import           Data.Aeson.Casing            (aesonPrefix, snakeCase)
-import           Data.Default                 (Default (..))
-import           Data.Functor                 ((<&>))
-import           Data.List                    (isPrefixOf)
-import           Data.Maybe                   (catMaybes)
-import           ENCOINS.Core.OffChain        (EncoinsMode (..))
-import           ENCOINS.Core.OnChain         (EncoinsProtocolParams)
-import           GHC.Generics                 (Generic)
-import           Ledger                       (NetworkId)
-import           Plutus.V2.Ledger.Api         (BuiltinByteString)
-import           PlutusAppsExtra.Test.Utils   (genTxOutRef)
-import           System.Directory             (listDirectory)
-import           Test.QuickCheck              (Arbitrary (..), Gen, choose, shuffle, suchThat)
+import           Control.Monad                  (forM, replicateM)
+import           Data.Aeson                     (FromJSON (..), decodeFileStrict, genericParseJSON)
+import           Data.Aeson.Casing              (aesonPrefix, snakeCase)
+import           Data.Default                   (Default (..))
+import           Data.Functor                   ((<&>))
+import           Data.Maybe                     (catMaybes)
+import           ENCOINS.Core.OnChain           (EncoinsProtocolParams)
+import           ENCOINS.Core.OffChain          (EncoinsMode (..))
+import           GHC.Generics                   (Generic)
+import           Ledger                         (NetworkId)
+import           Plutus.V2.Ledger.Api           (BuiltinByteString)
+import           PlutusAppsExtra.Test.Utils     (genTxOutRef)
+import           System.Directory               (listDirectory)
+import           Test.QuickCheck                (Arbitrary (..), Gen, choose, shuffle, suchThat)
 
 data TestConfig = TestConfig
     { tcProtocolParamsFile :: FilePath
