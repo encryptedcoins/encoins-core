@@ -30,15 +30,16 @@ instance FromJSON TestConfig where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
 data TestSpecification = TestSpecification
-    { tsWalletUtxosAmt      :: Int
-    , tsAdaInWalletUtxo     :: Integer
-    , tsLedgerUtxosAmt      :: Int
-    , tsMaxAdaInSingleToken :: Integer
-    , tsShouldFail          :: Bool
+    { tsWalletUtxosAmt           :: Int
+    , tsAdaInWalletUtxo          :: Integer
+    , tsForeignTokensInWalletAmt :: Int
+    , tsLedgerUtxosAmt           :: Int
+    , tsMaxAdaInSingleToken      :: Integer
+    , tsShouldFail               :: Bool
     } deriving (Show, Generic)
 
 instance Default TestSpecification where
-    def = TestSpecification 0 0 0 1000 False
+    def = TestSpecification 0 0 0 0 1000 False
 
 instance FromJSON TestSpecification where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase

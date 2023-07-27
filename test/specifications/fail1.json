@@ -1,6 +1,7 @@
-{ "wallet_utxos_amt"        : 10000
-, "ada_in_wallet_utxo"      : 1
-, "ledger_utxos_amt"        : 10000
-, "max_ada_in_single_token" : 10000
-, "should_fail"             : true
+{ "wallet_utxos_amt"             : 10000
+, "ada_in_wallet_utxo"           : 1
+, "foreign_tokens_in_wallet_amt" : 100
+, "ledger_utxos_amt"             : 10000
+, "max_ada_in_single_token"      : 10000
+, "should_fail"                  : true
 }
