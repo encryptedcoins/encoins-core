@@ -1,23 +1,34 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE LambdaCase    #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections     #-}
 
 module Internal where
 
-import           Control.Monad                  (forM, replicateM)
-import           Data.Aeson                     (FromJSON (..), decodeFileStrict, genericParseJSON)
-import           Data.Aeson.Casing              (aesonPrefix, snakeCase)
-import           Data.Default                   (Default (..))
-import           Data.Functor                   ((<&>))
-import           Data.Maybe                     (catMaybes)
-import           ENCOINS.Core.OnChain           (EncoinsProtocolParams)
-import           ENCOINS.Core.OffChain          (EncoinsMode (..))
-import           GHC.Generics                   (Generic)
-import           Ledger                         (NetworkId)
-import           Plutus.V2.Ledger.Api           (BuiltinByteString)
-import           PlutusAppsExtra.Test.Utils     (genTxOutRef)
-import           System.Directory               (listDirectory)
-import           Test.QuickCheck                (Arbitrary (..), Gen, choose, shuffle, suchThat)
+import           Control.Monad              (forM, replicateM)
+import           Data.Aeson                 (FromJSON (..), decodeFileStrict, genericParseJSON)
+import           Data.Aeson.Casing          (aesonPrefix, snakeCase)
+import           Data.Bifunctor             (Bifunctor (..))
+import           Data.Default               (Default (..))
+import           Data.Function              (on)
+import           Data.Functor               ((<&>))
+import           Data.List                  (sortBy)
+import           Data.Maybe                 (catMaybes)
+import           ENCOINS.BaseTypes          (MintingPolarity (..))
+import           ENCOINS.Bulletproofs       (Secret (Secret), bulletproof, fromSecret, parseBulletproofParams, polarityToInteger)
+import           ENCOINS.Core.OffChain      (EncoinsMode (..), mkEncoinsRedeemerOnChain, protocolFee)
+import           ENCOINS.Core.OnChain
+import           ENCOINS.Crypto.Field       (toFieldElement)
+import           GHC.Generics               (Generic)
+import           Ledger                     (Address, NetworkId, TokenName)
+import           Plutus.V2.Ledger.Api       (BuiltinByteString, TokenName (..))
+import           PlutusAppsExtra.Test.Utils (genPubKeyAddress, genTxOutRef)
+import           PlutusTx.Extra.ByteString  (ToBuiltinByteString (..))
+import           PlutusTx.Prelude           (sha2_256)
+import           Prelude                    hiding (readFile)
+import           System.Directory           (listDirectory)
+import           System.Random              (randomIO)
+import           Test.QuickCheck            (Arbitrary (..), Gen, choose, shuffle, suchThat)
 
 data TestConfig = TestConfig
     { tcProtocolParamsFile :: FilePath
@@ -94,3 +105,54 @@ requestMode :: EncoinsRequest -> EncoinsMode
 requestMode = \case
     WalletRequest _ -> WalletMode
     LedgerRequest _ -> LedgerMode
+
+data TestEnv = TestEnv
+    { teReq           :: [Integer]
+    , teInputs        :: [(BuiltinByteString, MintingPolarity)]
+    , teMint          :: [(TokenName, Integer)]
+    , teEncoinsParams :: EncoinsProtocolParams
+    , teRedeemer      :: EncoinsRedeemerOnChain
+    , teLedgerAddr    :: Address
+    , teChangeAddr    :: Address
+    , teV             :: Integer
+    , teFees          :: Integer
+    , teDeposits      :: Integer
+    }
+
+-- Gen encoins redeemer and all other params necessary for testing
+genTestEnv :: BuiltinByteString -> BuiltinByteString -> EncoinsRequest -> IO TestEnv
+genTestEnv verifierPKH verifierPrvKey encoinsRequest = do
+    let req = extractRequest encoinsRequest
+    encoinsParams <- genEncoinsParams verifierPKH
+    gammas <- replicateM (length req) randomIO
+    randomness <- randomIO
+    changeAddress <- genPubKeyAddress
+    bulletproofSetup <- randomIO
+    let mode          = requestMode encoinsRequest
+        ledgerAddress = ledgerValidatorAddress encoinsParams
+        ps            = map (\i -> if i < 0 then Burn else Mint) req
+        secrets       = zipWith (\i g -> Secret g (toFieldElement i)) req gammas
+        v             = sum req
+        fees          = 2 * protocolFee mode v
+        par           = (ledgerAddress, changeAddress, fees)
+        bp            = parseBulletproofParams $ sha2_256 $ toBytes par
+        inputs        = zipWith (\(_, bs) p -> (bs, p)) (map (fromSecret bulletproofSetup) secrets) ps
+        (_, _, proof) = bulletproof bulletproofSetup bp secrets ps randomness
+        signature  = ""
+        red = (par, (v, inputs), proof, signature)
+        redOnChain = mkEncoinsRedeemerOnChain verifierPrvKey red
+        deposits = case mode of
+            WalletMode -> 0
+            LedgerMode -> depositMultiplier * sum (polarityToInteger <$> ps)
+    return TestEnv
+        { teReq           = req
+        , teInputs        = inputs
+        , teMint          = sortBy (compare `on` fst) $ bimap TokenName polarityToInteger <$> inputs
+        , teEncoinsParams = encoinsParams
+        , teRedeemer      = redOnChain
+        , teLedgerAddr    = ledgerAddress
+        , teChangeAddr    = changeAddress
+        , teV             = v
+        , teFees          = fees
+        , teDeposits      = deposits
+        }

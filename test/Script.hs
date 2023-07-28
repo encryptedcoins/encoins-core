@@ -7,33 +7,25 @@ module Script where
 
 import           Cardano.Api                (NetworkId (..), NetworkMagic (..))
 import           Cardano.Node.Emulator      (Params (..), pParamsFromProtocolParams)
-import           Control.Monad              (forM_, replicateM)
+import           Control.Monad              (forM_)
 import           Data.Aeson                 (decode, eitherDecodeFileStrict)
-import           Data.Bifunctor             (Bifunctor (..))
 import           Data.ByteString.Lazy       (readFile)
 import           Data.Default               (def)
-import           Data.Function              (on)
-import           Data.List                  (sortBy)
 import           Data.Maybe                 (fromJust)
-import           ENCOINS.BaseTypes          (MintingPolarity (..))
-import           ENCOINS.Bulletproofs       (Secret (Secret), bulletproof, fromSecret, parseBulletproofParams, polarityToInteger)
-import           ENCOINS.Core.OffChain      (EncoinsMode (..), mkEncoinsRedeemerOnChain, protocolFee)
+import           ENCOINS.Core.OffChain      (EncoinsMode (..))
 import           ENCOINS.Core.OnChain
-import           ENCOINS.Crypto.Field       (toFieldElement)
-import           Internal                   (EncoinsRequest, TestSpecification (..), extractRequest, genEncoinsParams, genRequest,
-                                             getSpecifications, requestMode)
+import           Internal                   (TestEnv (..), TestSpecification (..), genEncoinsParams, genRequest, genTestEnv,
+                                             getSpecifications)
 import           Ledger.Ada                 (lovelaceValueOf)
 import           Ledger.Value               (adaOnlyValue, isZero, leq)
 import           Plutus.V2.Ledger.Api       (Address, BuiltinByteString, BuiltinData (..), CurrencySymbol, Data (..), Datum (..),
                                              OutputDatum (..), Redeemer (Redeemer), ScriptContext (..), ScriptPurpose (..),
                                              ToData (..), TokenName (..), TxId (..), TxInInfo (..), TxInfo (..), TxOut (..),
                                              TxOutRef (..), Value (..), singleton)
-import           PlutusAppsExtra.Test.Utils (emptyInfo, genPubKeyAddress, testMintingPolicy, testValidator)
+import           PlutusAppsExtra.Test.Utils (emptyInfo, testMintingPolicy, testValidator)
 import qualified PlutusTx.AssocMap          as PAM
-import           PlutusTx.Extra.ByteString  (ToBuiltinByteString (..))
-import           PlutusTx.Prelude           (Group (inv), sha2_256, zero)
+import           PlutusTx.Prelude           (Group (inv), zero)
 import           Prelude                    hiding (readFile)
-import           System.Random              (randomIO)
 import           Test.Hspec                 (Expectation, context, describe, hspec, it)
 import           Test.QuickCheck            (Property, Testable (property), forAll)
 
@@ -75,12 +67,45 @@ mintingPolicyTest ledgerParams verifierPKH verifierPrvKey mode TestSpecification
     property $ forAll (genRequest tsMaxAdaInSingleToken mode) $ \encoinsRequest -> do
         TestEnv{..} <- genTestEnv verifierPKH verifierPrvKey encoinsRequest
         let encoinsCs = encoinsSymbol teEncoinsParams
-            txInfo = teTxInfo
-                { txInfoInputs  = mconcat
-                    [txInfoInputs  teTxInfo, walletSpecifiedInputs  teChangeAddr, ledgerSpecifiedInputs teLedgerAddr encoinsCs]
-                , txInfoOutputs = mconcat
-                    [txInfoOutputs teTxInfo, walletSpecifiedOutputs teChangeAddr, ledgerSpecifiedOutputs teLedgerAddr encoinsCs]
+            beaconSymbol = beaconCurrencySymbol teEncoinsParams
+            beacon = singleton beaconSymbol beaconTokenName 1
+            val = lovelaceValueOf $ teV * 1_000_000
+            valDeposits = lovelaceValueOf $ teDeposits * 1_000_000
+
+            tokenNameToVal name = mkEncoinsValue encoinsCs [(name, 1)]
+            ledgerInVal  = map ((minTxOutValueInLedger <>) . tokenNameToVal . fst) $ filter ((== -1) . snd) teMint
+            ledgerOutVal = map ((minTxOutValueInLedger <>) . tokenNameToVal . fst) $ filter ((==  1) . snd) teMint
+            txMint = Value . PAM.fromList . (:[]) . (encoinsCs,) . PAM.fromList $ teMint
+            (ledgerInVal', ledgerOutVal') = balanceLedgerInsOuts ledgerInVal ledgerOutVal (val <> valDeposits <> txMint)
+
+            ledgerIns
+                | mode == WalletMode && teV > 0 = [mkLedgerTxIn teLedgerAddr minTxOutValueInLedger]
+                | mode == WalletMode          = [mkLedgerTxIn teLedgerAddr $ inv val <> minTxOutValueInLedger]
+                | otherwise                   =  mkLedgerTxIn teLedgerAddr <$> ledgerInVal'
+
+            ledgerOuts
+                | mode == WalletMode && teV > 0 = [mkLedgerTxOut teLedgerAddr $ val <> minTxOutValueInLedger]
+                | mode == WalletMode            = [mkLedgerTxOut teLedgerAddr minTxOutValueInLedger]
+                | otherwise                     =  mkLedgerTxOut teLedgerAddr <$> ledgerOutVal'
+
+            waletTokensIn = if mode == WalletMode then mkEncoinsValue encoinsCs $ map (negate <$>) $ filter ((== (-1)) . snd) teMint else mempty
+            walletIns
+                | teV + teFees + teDeposits > 0 = [mkWalletTxIn teChangeAddr $ lovelaceValueOf ((teV + teFees + teDeposits) * 1_000_000) <> waletTokensIn]
+                | otherwise               = [mkWalletTxIn teChangeAddr waletTokensIn]
+
+            walletTokensOut = if mode == WalletMode then mkEncoinsValue encoinsCs $ filter ((== 1) . snd) teMint else mempty
+            walletOuts
+                | teV + teFees + teDeposits > 0 = [mkWalletTxOut teChangeAddr walletTokensOut]
+                | otherwise               = [mkWalletTxOut teChangeAddr (walletTokensOut <> lovelaceValueOf (-(teV + teFees + teDeposits) * 1_000_000))]
+            txInfo = emptyInfo
+                { txInfoReferenceInputs = [mkLedgerTxIn teLedgerAddr beacon]
+                , txInfoMint            = txMint
+                , txInfoInputs          = mconcat
+                    [ledgerIns, walletIns, walletSpecifiedInputs  teChangeAddr, ledgerSpecifiedInputs teLedgerAddr encoinsCs]
+                , txInfoOutputs         = mconcat
+                    [ledgerOuts, walletOuts, walletSpecifiedOutputs teChangeAddr, ledgerSpecifiedOutputs teLedgerAddr encoinsCs]
                 }
+        
         testMintingPolicy
             ledgerParams
             (encoinsPolicy teEncoinsParams)
@@ -95,95 +120,6 @@ mintingPolicyTest ledgerParams verifierPKH verifierPrvKey mode TestSpecification
             let v = minTxOutValueInLedger <> singleton cs "0000000000000000000000000000000000000000000000000000000000000000" 1
             in replicate tsLedgerUtxosAmt $ mkLedgerTxOut addr v
         ledgerSpecifiedInputs addr cs = map (TxInInfo ref) $ ledgerSpecifiedOutputs addr cs
-
-data TestEnv = TestEnv
-    { teTxInfo        :: TxInfo
-    , teReq           :: [Integer]
-    , teEncoinsParams :: EncoinsProtocolParams
-    , teRedeemer      :: EncoinsRedeemerOnChain
-    , teLedgerAddr    :: Address
-    , teChangeAddr    :: Address
-    , teV             :: Integer
-    , teFees          :: Integer
-    , teDeposits      :: Integer
-    }
-
-genTestEnv :: BuiltinByteString -> BuiltinByteString -> EncoinsRequest -> IO TestEnv
-genTestEnv verifierPKH verifierPrvKey encoinsRequest = do
-    let req = extractRequest encoinsRequest
-    encoinsParams <- genEncoinsParams verifierPKH
-    gammas <- replicateM (length req) randomIO
-    randomness <- randomIO
-    changeAddress <- genPubKeyAddress
-    bulletproofSetup <- randomIO
-    let mode          = requestMode encoinsRequest
-        ledgerAddress = ledgerValidatorAddress encoinsParams
-        encoinsCs = encoinsSymbol encoinsParams
-
-        ps            = map (\i -> if i < 0 then Burn else Mint) req
-        secrets       = zipWith (\i g -> Secret g (toFieldElement i)) req gammas
-        v             = sum req
-        fees          = 2 * protocolFee mode v
-        par           = (ledgerAddress, changeAddress, fees) :: TxParams
-        bp            = parseBulletproofParams $ sha2_256 $ toBytes par
-        inputs        = zipWith (\(_, bs) p -> (bs, p)) (map (fromSecret bulletproofSetup) secrets) ps
-        (_, _, proof) = bulletproof bulletproofSetup bp secrets ps randomness
-        signature  = ""
-        red = (par, (v, inputs), proof, signature)
-        redOnChain = mkEncoinsRedeemerOnChain verifierPrvKey red
-
-        beaconSymbol = beaconCurrencySymbol encoinsParams
-        beacon = singleton beaconSymbol beaconTokenName 1
-        mint = sortBy (compare `on` fst) $ bimap TokenName polarityToInteger <$> inputs
-        txMint = Value . PAM.fromList . (:[]) . (encoinsCs,) . PAM.fromList $ mint
-        val = lovelaceValueOf $ v * 1_000_000
-        deposits = case mode of
-            WalletMode -> 0
-            LedgerMode -> depositMultiplier * sum (polarityToInteger <$> ps)
-        valDeposits = lovelaceValueOf $ deposits * 1_000_000
-
-        tokenNameToVal name = mkEncoinsValue encoinsCs [(name, 1)]
-        ledgerInVal  = map ((minTxOutValueInLedger <>) . tokenNameToVal . fst) $ filter ((== -1) . snd) mint
-        ledgerOutVal = map ((minTxOutValueInLedger <>) . tokenNameToVal . fst) $ filter ((==  1) . snd) mint
-        (ledgerInVal', ledgerOutVal') = balanceLedgerInsOuts ledgerInVal ledgerOutVal (val <> valDeposits <> txMint)
-
-        ledgerIns
-            | mode == WalletMode && v > 0 = [mkLedgerTxIn ledgerAddress minTxOutValueInLedger]
-            | mode == WalletMode          = [mkLedgerTxIn ledgerAddress $ inv val <> minTxOutValueInLedger]
-            | otherwise                   =  mkLedgerTxIn ledgerAddress <$> ledgerInVal'
-
-        ledgerOuts
-            | mode == WalletMode && v > 0 = [mkLedgerTxOut ledgerAddress $ val <> minTxOutValueInLedger]
-            | mode == WalletMode          = [mkLedgerTxOut ledgerAddress minTxOutValueInLedger]
-            | otherwise                   =  mkLedgerTxOut ledgerAddress <$> ledgerOutVal'
-
-        waletTokensIn = if mode == WalletMode then mkEncoinsValue encoinsCs $ map (negate <$>) $ filter ((== (-1)) . snd) mint else mempty
-        walletIns
-            | v + fees + deposits > 0 = [mkWalletTxIn changeAddress $ lovelaceValueOf ((v + fees + deposits) * 1_000_000) <> waletTokensIn]
-            | otherwise               = [mkWalletTxIn changeAddress waletTokensIn]
-
-        walletTokensOut = if mode == WalletMode then mkEncoinsValue encoinsCs $ filter ((== 1) . snd) mint else mempty
-        walletOuts
-            | v + fees + deposits > 0 = [mkWalletTxOut changeAddress walletTokensOut]
-            | otherwise               = [mkWalletTxOut changeAddress (walletTokensOut <> lovelaceValueOf (-(v + fees + deposits) * 1_000_000))]
-    let txInfo = emptyInfo
-            { txInfoReferenceInputs = [mkLedgerTxIn ledgerAddress beacon]
-            , txInfoMint = txMint
-            , txInfoInputs = ledgerIns <> walletIns
-            , txInfoOutputs = ledgerOuts <> walletOuts
-            }
-
-    return $ TestEnv
-        { teTxInfo        = txInfo
-        , teReq           = req
-        , teEncoinsParams = encoinsParams
-        , teRedeemer      = redOnChain
-        , teLedgerAddr    = ledgerAddress
-        , teChangeAddr    = changeAddress
-        , teV             = v
-        , teFees          = fees
-        , teDeposits      = deposits
-        }
 
 mkLedgerTxOut :: Address -> Value -> TxOut
 mkLedgerTxOut addr v = TxOut addr v (OutputDatum (Datum $ toBuiltinData ())) Nothing

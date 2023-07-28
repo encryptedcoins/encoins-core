@@ -4,37 +4,39 @@
 {-# LANGUAGE OverloadedLists    #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
+{-# LANGUAGE TupleSections      #-}
 {-# LANGUAGE TypeFamilies       #-}
 
 module Tx where
 import           Cardano.Node.Emulator         (Params (..))
 import           Control.Lens                  (Field1 (_1), Field2 (_2), (%~), (&), (^.))
-import           Control.Monad                 (forM_, replicateM_, replicateM)
-import           Control.Monad.State           (gets, modify, when, evalStateT, MonadIO (..))
+import           Control.Monad                 (forM_, replicateM, replicateM_)
+import           Control.Monad.State           (MonadIO (..), evalStateT, gets, modify, when)
 import           Data.Aeson                    (eitherDecodeFileStrict)
 import qualified Data.ByteString               as BS
 import           Data.Digits                   (digits)
-import           Data.Either                   (isLeft, isRight)
+import           Data.Either                   (isRight)
 import qualified Data.Map                      as Map
 import           Data.Maybe                    (fromJust)
 import           ENCOINS.Core.OffChain         (EncoinsMode (..), encoinsTx, protocolFeeValue)
 import           ENCOINS.Core.OnChain          (beaconAssetClass, encoinsSymbol, ledgerValidatorAddress, minAdaTxOutInLedger,
                                                 minTxOutValueInLedger, stakeOwnerToken)
-import           Internal                      (TestConfig (..), TestSpecification (..), genRequest, getSpecifications)
+import           Internal                      (TestConfig (..), TestEnv (..), TestSpecification (..), genRequest, genTestEnv,
+                                                getSpecifications)
 import           Ledger                        (Address (..), DecoratedTxOut (..), TxId (..), TxOutRef (..), Value,
                                                 _decoratedTxOutAddress, decoratedTxOutValue)
 import qualified Ledger.Ada                    as Ada
-import           Ledger.Value                  (assetClassValue, scale, CurrencySymbol (..), TokenName (..))
+import           Ledger.Value                  (CurrencySymbol (..), TokenName (..), Value (..), assetClassValue, scale)
 import qualified Ledger.Value                  as Value
 import           Plutus.V2.Ledger.Api          (Credential (..), toBuiltin)
-import           Plutus.V2.Ledger.Contexts     (TxInfo (..))
 import           PlutusAppsExtra.Test.Utils    (TxTestM, buildTx, getProtocolParams, isOutOfResoursesError)
 import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
 import           PlutusAppsExtra.Utils.Datum   (inlinedUnitInTxOut)
+import qualified PlutusTx.AssocMap             as PAM
 import           PlutusTx.Builtins             (BuiltinByteString)
-import           Script                        (TestEnv (..), genTestEnv)
 import           Test.Hspec                    (context, describe, hspec, it, parallel, shouldSatisfy)
-import           Test.QuickCheck               (Property, forAll, property, withMaxSuccess, discard, Arbitrary (arbitrary), generate, choose)
+import           Test.QuickCheck               (Arbitrary (arbitrary), Property, choose, discard, forAll, generate, property,
+                                                withMaxSuccess)
 
 txSpec :: IO ()
 txSpec = do
@@ -78,13 +80,15 @@ encoinsTxTest pParams verifierPKH verifierPrvKey mode TestSpecification{..} = pr
             specifyWalletUtxos (teV + teFees + teDeposits) teChangeAddr
             specifyLedgerUtxos TestEnv{..}
             let valFee = protocolFeeValue mode teV
+                encoinsCs = encoinsSymbol teEncoinsParams
+                mint = Value . PAM.fromList . (:[]) . (encoinsCs,) . PAM.fromList $ teMint
             case mode of
                 WalletMode -> do
                     when (teV < 2) $ addValueTo teLedgerAddr $ Ada.lovelaceValueOf (max 0 (-teV) * 1_000_000 + minAdaTxOutInLedger)
-                    addValueTo teChangeAddr (fst $ Value.split $ txInfoMint teTxInfo)
+                    addValueTo teChangeAddr (fst $ Value.split mint)
                 LedgerMode -> do
                     when (teV + teDeposits < 0) $ addValueTo teLedgerAddr $ Ada.lovelaceValueOf ((-teV - teDeposits) * 1_000_000 + minAdaTxOutInLedger) 
-                    addValueTo teLedgerAddr (fst (Value.split $ txInfoMint teTxInfo) <> scale 2 minTxOutValueInLedger)
+                    addValueTo teLedgerAddr (fst (Value.split mint) <> scale 2 minTxOutValueInLedger)
 
         setSetupTokens TestEnv{..} = do
             -- Set stake owner token
