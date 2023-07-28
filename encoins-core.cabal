@@ -39,6 +39,7 @@ library
       ENCOINS.Core.V1.OffChain.Modes
       ENCOINS.Core.V1.OnChain.Aiken
       ENCOINS.Core.V1.OnChain.Aiken.UPLC
+      ENCOINS.Core.V1.OnChain.Internal
       ENCOINS.Core.V1.OnChain.Plutus
     build-depends:
       base                          >= 4.9 && < 5,
@@ -93,17 +94,29 @@ test-suite encoins-core-test
   Default-Language:     Haskell2010
   Hs-Source-Dirs:       test
   Main-Is:              Main.hs
+  Other-Modules:        Internal
+                        Script
+                        Tx
   Build-Depends:
     base                                     -any,
     aeson                                    -any,
+    aeson-casing                             -any,
     bytestring                               -any,
     cardano-api                              -any,
+    cardano-node-emulator                    -any,
     containers                               -any,
+    data-default                             -any,
+    digits                                   -any,
+    directory                                -any,
     encoins-bulletproofs                     -any,
     encoins-core                             -any,
     generic-arbitrary                        -any,
     hex-text                                 -any,
+    hspec                                    -any,
+    lens                                     -any,
+    mtl                                      -any,
     plutus-apps-extra                        -any,
+    plutus-apps-extra-test-utils             -any,
     plutus-contract                          -any,
     plutus-chain-index                       -any,
     plutus-chain-index-core                  -any,

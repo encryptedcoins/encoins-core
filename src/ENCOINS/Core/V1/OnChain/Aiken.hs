@@ -12,26 +12,64 @@ module ENCOINS.Core.V1.OnChain.Aiken where
 
 import           Data.Maybe                         (fromJust)
 import           Ledger.Tokens                      (token)
-import           Ledger.Typed.Scripts               (Versioned (..), Language (..))
+import           Ledger.Typed.Scripts               (Language (..), Versioned (..))
 import           Ledger.Value                       (AssetClass (..))
-import           Plutus.Script.Utils.V2.Scripts     (validatorHash, scriptCurrencySymbol)
+import           Plutus.Script.Utils.V2.Scripts     (scriptCurrencySymbol, validatorHash)
 import           Plutus.V2.Ledger.Api
-import           PlutusTx.AssocMap                  (lookup, keys)
+import           PlutusTx.AssocMap                  (keys, lookup)
 import           PlutusTx.Prelude
 import           Text.Hex                           (decodeHex)
 
-import           ENCOINS.Core.V1.OnChain.Plutus     (EncoinsRedeemerOnChain, EncoinsProtocolParams, encoinName, toEncoinsPolicyParams)
-import           ENCOINS.Core.V1.OnChain.Aiken.UPLC (ledgerValidatorCheck, encoinsPolicyCheck)
-import           PlutusAppsExtra.Utils.Scripts      (unsafeParameterizedValidatorFromCBOR, unsafeParameterizedMintingPolicyFromCBOR)
+import           Data.Bifunctor                     (Bifunctor (..))
+import           ENCOINS.Core.V1.OnChain.Aiken.UPLC (encoinsPolicyCheck, ledgerValidatorCheck)
+import           ENCOINS.Core.V1.OnChain.Internal   (EncoinsLedgerValidatorParams, EncoinsPolicyParams, EncoinsProtocolParams,
+                                                     EncoinsRedeemerOnChain, encoinName, toEncoinsPolicyParams, TxParams, ProofHash, EncoinsInputOnChain)
+import           PlutusAppsExtra.Utils.Scripts      (unsafeParameterizedMintingPolicyFromCBOR,
+                                                     unsafeParameterizedValidatorFromCBOR)
 import           PlutusTx.Builtins                  (serialiseData)
+
+-------------------------------------- ToData instances --------------------------------------
+
+newtype Aiken a = Aiken a
+
+instance ToData (Aiken EncoinsLedgerValidatorParams) where
+    toBuiltinData (Aiken cs) = BuiltinData $ Constr 121 [toData cs]
+
+instance ToData (Aiken EncoinsPolicyParams) where
+    toBuiltinData (Aiken (val, bbs)) = BuiltinData $ List [toData val, toData bbs]
+
+instance ToData (Aiken (TxParams, EncoinsInputOnChain, ProofHash)) where
+    toBuiltinData (Aiken ((a1, a2, fees), (iVal, inputs), proofHash)) = do
+        let a1' = toData a1
+            a2' = toData a2
+            fees' = toData fees
+            proofHash' = toData proofHash
+            par' = List [a1', a2', fees']
+            iVal' = I iVal
+            inputs' = Map (bimap toData I <$> inputs)
+            input' = List [iVal', inputs']
+        BuiltinData $ List [par', input', proofHash']
+
+instance ToData (Aiken EncoinsRedeemerOnChain) where
+    toBuiltinData (Aiken ((a1, a2, fees), (iVal, inputs), proofHash, sig)) = do
+        let a1' = toData a1
+            a2' = toData a2
+            fees' = toData fees
+            proofHash' = toData proofHash
+            par' = List [a1', a2', fees']
+            iVal' = I iVal
+            inputs' = Map (bimap toData I <$> inputs)
+            input' = List [iVal', inputs']
+            sig' = toData sig
+        BuiltinData $ List [par', input', proofHash', sig']
 
 ----------------------------------- ENCOINS Minting Policy ---------------------------------------
 
 hashRedeemer :: EncoinsRedeemerOnChain -> BuiltinByteString
-hashRedeemer (a, b, c, _) = sha2_256 . serialiseData . toBuiltinData $ (a, b, c)
+hashRedeemer (a, b, c, _) = sha2_256 . serialiseData . toBuiltinData $ Aiken (a, b, c)
 
 encoinsPolicy :: EncoinsProtocolParams -> MintingPolicy
-encoinsPolicy = unsafeParameterizedMintingPolicyFromCBOR encoinsPolicyCheck . toEncoinsPolicyParams
+encoinsPolicy = unsafeParameterizedMintingPolicyFromCBOR encoinsPolicyCheck . Aiken . toEncoinsPolicyParams
 
 encoinsPolicyV :: EncoinsProtocolParams -> Versioned MintingPolicy
 encoinsPolicyV = flip Versioned PlutusV2 . encoinsPolicy
@@ -51,7 +89,7 @@ encoinsInValue par = map unTokenName . maybe [] keys . lookup (encoinsSymbol par
 ------------------------------------- ENCOINS Ledger Validator --------------------------------------
 
 ledgerValidator :: EncoinsProtocolParams -> Validator
-ledgerValidator = unsafeParameterizedValidatorFromCBOR ledgerValidatorCheck . encoinsSymbol
+ledgerValidator = unsafeParameterizedValidatorFromCBOR ledgerValidatorCheck . Aiken . encoinsSymbol
 
 ledgerValidatorV :: EncoinsProtocolParams -> Versioned Validator
 ledgerValidatorV = flip Versioned PlutusV2 . ledgerValidator
