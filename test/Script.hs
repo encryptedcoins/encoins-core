@@ -15,14 +15,14 @@ import           Data.Maybe                 (fromJust)
 import           ENCOINS.Core.OffChain      (EncoinsMode (..))
 import           ENCOINS.Core.OnChain
 import           Internal                   (TestEnv (..), TestSpecification (..), genEncoinsParams, genRequest, genTestEnv,
-                                             getSpecifications)
+                                             getSpecifications, TestConfig (..))
 import           Ledger.Ada                 (lovelaceValueOf)
 import           Ledger.Value               (adaOnlyValue, isZero, leq)
 import           Plutus.V2.Ledger.Api       (Address, BuiltinByteString, BuiltinData (..), CurrencySymbol, Data (..), Datum (..),
                                              OutputDatum (..), Redeemer (Redeemer), ScriptContext (..), ScriptPurpose (..),
                                              ToData (..), TokenName (..), TxId (..), TxInInfo (..), TxInfo (..), TxOut (..),
                                              TxOutRef (..), Value (..), singleton)
-import           PlutusAppsExtra.Test.Utils (emptyInfo, testMintingPolicy, testValidator)
+import           PlutusAppsExtra.Test.Utils (emptyInfo, testMintingPolicy, testValidator, getProtocolParams)
 import qualified PlutusTx.AssocMap          as PAM
 import           PlutusTx.Prelude           (Group (inv), zero)
 import           Prelude                    hiding (readFile)
@@ -31,17 +31,18 @@ import           Test.QuickCheck            (Property, Testable (property), forA
 
 runScriptTest :: IO ()
 runScriptTest = do
-    pp                  <- fromJust . decode <$> readFile "test/protocol-parameters.json"
-    verifierPrvKey      <- either error id <$> eitherDecodeFileStrict "test/verifierPrvKey.json"
-    verifierPKH         <- either error id <$> eitherDecodeFileStrict "test/verifierPKH.json"
+    TestConfig{..}      <- either error id <$> eitherDecodeFileStrict "test/configuration/testConfig.json"
+    verifierPKH         <- either error id <$> eitherDecodeFileStrict tcVerifierPkhFile
+    verifierPrvKey      <- either error id <$> eitherDecodeFileStrict tcVerifierPrvKeyFile
+    pParams             <- getProtocolParams tcProtocolParamsFile tcNetworkId
     testSpecsifications <- getSpecifications
     let networkId = Testnet $ NetworkMagic 1
-        ledgerParams = Params def (pParamsFromProtocolParams pp) networkId
-        testMp =  mintingPolicyTest ledgerParams verifierPKH verifierPrvKey
+        -- ledgerParams = Params def (pParamsFromProtocolParams pParams) networkId
+        testMp =  mintingPolicyTest pParams verifierPKH verifierPrvKey
 
     hspec $ describe "script tests" $ do
         
-        it "ledger validator" $ ledgerValidatorTest ledgerParams verifierPKH
+        it "ledger validator" $ ledgerValidatorTest pParams verifierPKH
         
         context "minting policy" $ do
             forM_ testSpecsifications $ \(name, tSpec) -> do

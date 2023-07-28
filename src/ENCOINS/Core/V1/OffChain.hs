@@ -17,7 +17,7 @@ import           Data.Bool                                (bool)
 import           Data.Functor                             (($>), (<$>))
 import           Data.Text                                (pack)
 import           Ledger                                   (DecoratedTxOut (..), _decoratedTxOutAddress, noAdaValue)
-import           Ledger.Ada                               (lovelaceValueOf)
+import           Ledger.Ada                               (lovelaceValueOf, fromValue, Ada (getLovelace))
 import           Ledger.Value                             (adaOnlyValue, flattenValue, geq, gt, singleton)
 import           Plutus.V2.Ledger.Api                     hiding (singleton)
 import           PlutusTx.Extra.ByteString                (toBytes)
@@ -161,14 +161,15 @@ encoinsBurnTx par bss mode = do
 -- Modify the value locked in the ENCOINS Ledger script by the given value
 ledgerModifyTx :: EncoinsProtocolParams -> Value -> TransactionBuilder ()
 ledgerModifyTx par val
-    | adaOnlyValue val `geq` lovelaceValueOf minAdaTxOutInLedger = encoinsSendTx par (ledgerValidatorAddress par) val
+    | adaOnlyValue val `geq` minMaxTxOutValueInLedger = encoinsSendTx par (ledgerValidatorAddress par) val
     | otherwise     = do
         -- The number of encoins to put in the Ledger
-        let n = length (flattenValue val) - 1
-        let valAda = lovelaceValueOf (n * minAdaTxOutInLedger) - adaOnlyValue val
+        let n       = length (flattenValue val) - 1
+            valAda  = scale n minTxOutValueInLedger - adaOnlyValue val
+            valAda' = lovelaceValueOf . max minMaxAdaTxOutInLedger . getLovelace . fromValue $ valAda
         -- TODO: Spend several utxo to get the required value
         -- TODO: Randomize the selection process
-        val'  <- fromMaybe zero <$> ledgerSpendTx par valAda
+        val'  <- fromMaybe zero <$> ledgerSpendTx par valAda'
         -- Spend an additional utxo if possible
         val'' <- fromMaybe zero <$> ledgerSpendTx' par (lovelaceValueOf $ minAdaTxOutInLedger + 1)
         if val' `gt` zero

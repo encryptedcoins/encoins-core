@@ -36,6 +36,8 @@ import           ENCOINS.Core.OnChain             (encoinsPolicy, encoinsSymbol,
 import           ENCOINS.Crypto.Field             (Field(..))
 import           PlutusAppsExtra.Utils.Address    (bech32ToAddress, addressToBech32)
 import           PlutusTx.Extra.ByteString        (toBytes)
+import           Script                           (runScriptTest)
+import           Tx                               (runTransactionTest)
 
 -- A helper function to convert Plutus data to JSON
 mkSchema :: Data -> String
@@ -61,16 +63,20 @@ main = do
         encoinsSymb    = encoinsSymbol encoinsPar
         ledgerAddr     = ledgerValidatorAddress encoinsPar
 
+    -- Running tests
+    runScriptTest
+    runTransactionTest
+
     -- Writing a new bulletproof setup to JSON
     bulletproofSetup <- randomIO :: IO BulletproofSetup
     writeFileJSON "result/bulletproof_setup.json" bulletproofSetup
-    -- Printing ENCOINS minting policy parameters
+    -- Writing ENCOINS minting policy parameters to JSON
     writeFileJSON "result/encoinsPolicyParameters.json" $ toEncoinsPolicyParams encoinsPar
     -- Writing ENCOINS currency symbol to JSON
     writeFileJSON "result/encoinsPolicyId.json" $ toJSON encoinsSymb
     -- Writing ENCOINS minting policy to JSON
     writeFileJSON "result/encoinsPolicy.json" $ toJSON $ encoinsPolicy encoinsPar
-    -- Writing current staking address to JSON
+    -- Writing current ENCOINS Ledger address to JSON
     writeFileJSON "result/ledgerAddr.json" $ toJSON ledgerAddr
 
     print "Done!"

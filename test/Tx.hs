@@ -21,7 +21,7 @@ import qualified Data.Map                      as Map
 import           Data.Maybe                    (fromJust)
 import           ENCOINS.Core.OffChain         (EncoinsMode (..), encoinsTx, protocolFeeValue)
 import           ENCOINS.Core.OnChain          (beaconAssetClass, encoinsSymbol, ledgerValidatorAddress, minAdaTxOutInLedger,
-                                                minTxOutValueInLedger, stakeOwnerToken)
+                                                minTxOutValueInLedger, stakeOwnerToken, minMaxTxOutValueInLedger)
 import           Internal                      (TestConfig (..), TestEnv (..), TestSpecification (..), genRequest, genTestEnv,
                                                 getSpecifications)
 import           Ledger                        (Address (..), DecoratedTxOut (..), TxId (..), TxOutRef (..), Value,
@@ -39,9 +39,9 @@ import           Test.Hspec                    (context, describe, hspec, it, sh
 import           Test.QuickCheck               (Arbitrary (arbitrary), Property, choose, discard, forAll, generate, property,
                                                 withMaxSuccess)
 
-txSpec :: IO ()
-txSpec = do
-    TestConfig{..}      <- either error id <$> eitherDecodeFileStrict "test/testConfig.json"
+runTransactionTest :: IO ()
+runTransactionTest = do
+    TestConfig{..}      <- either error id <$> eitherDecodeFileStrict "test/configuration/testConfig.json"
     verifierPKH         <- either error id <$> eitherDecodeFileStrict tcVerifierPkhFile
     verifierPrvKey      <- either error id <$> eitherDecodeFileStrict tcVerifierPrvKeyFile
     pParams             <- getProtocolParams tcProtocolParamsFile tcNetworkId
