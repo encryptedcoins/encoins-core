@@ -4,4 +4,5 @@
 , "ledger_utxos_amt"             : 10000
 , "max_ada_in_single_token"      : 10000
 , "should_fail"                  : true
+, "mode"                         : "WalletMode"
 }

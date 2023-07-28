@@ -14,6 +14,7 @@ import           Control.Monad                 (forM_, replicateM, replicateM_)
 import           Control.Monad.State           (MonadIO (..), evalStateT, gets, modify, when)
 import           Data.Aeson                    (eitherDecodeFileStrict)
 import qualified Data.ByteString               as BS
+import           Data.Default                  (Default(def))
 import           Data.Digits                   (digits)
 import           Data.Either                   (isRight)
 import qualified Data.Map                      as Map
@@ -34,7 +35,7 @@ import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
 import           PlutusAppsExtra.Utils.Datum   (inlinedUnitInTxOut)
 import qualified PlutusTx.AssocMap             as PAM
 import           PlutusTx.Builtins             (BuiltinByteString)
-import           Test.Hspec                    (context, describe, hspec, it, parallel, shouldSatisfy)
+import           Test.Hspec                    (context, describe, hspec, it, shouldSatisfy)
 import           Test.QuickCheck               (Arbitrary (arbitrary), Property, choose, discard, forAll, generate, property,
                                                 withMaxSuccess)
 
@@ -45,19 +46,24 @@ txSpec = do
     verifierPrvKey      <- either error id <$> eitherDecodeFileStrict tcVerifierPrvKeyFile
     pParams             <- getProtocolParams tcProtocolParamsFile tcNetworkId
     testSpecsifications <- getSpecifications
-    let testTx =  encoinsTxTest pParams verifierPKH verifierPrvKey
+    let testTx = encoinsTxTest pParams verifierPKH verifierPrvKey
 
-    hspec $ parallel $ describe "encoinsTx" $ do
-        forM_ testSpecsifications $ \(name, tSpec) -> do
-            context (name <> ":") $ context (show tSpec) $ do
-                -- Tests that should fail otherwise discard their result, so there is no need to run more than one test
-                let setLimit = if tsShouldFail tSpec then withMaxSuccess 1 else id
-                it "wallet mode" $ setLimit $ testTx WalletMode tSpec
-                it "ledger mode" $ setLimit $ testTx LedgerMode tSpec
+    hspec $ describe "encoinsTx" $ do
+            
+        context "no specification" $ do
+            it "wallet mode" $ testTx def{tsMode = WalletMode}
+            it "ledger mode" $ testTx def{tsMode = LedgerMode}
+        
+        context "specifications" $ do
+            forM_ testSpecsifications $ \(name, tSpec) -> do
+                context (name <> ":") $ it (show tSpec) $ do
+                    -- Tests that should fail otherwise discard their result, so there is no need to run more than one test
+                    let setLimit = if tsShouldFail tSpec then withMaxSuccess 1 else id
+                    setLimit $ testTx tSpec
 
-encoinsTxTest :: Params -> BuiltinByteString -> BuiltinByteString -> EncoinsMode -> TestSpecification -> Property
-encoinsTxTest pParams verifierPKH verifierPrvKey mode TestSpecification{..} = property $
-    forAll (genRequest tsMaxAdaInSingleToken mode) $ \req -> do
+encoinsTxTest :: Params -> BuiltinByteString -> BuiltinByteString -> TestSpecification -> Property
+encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = property $
+    forAll (genRequest tsMaxAdaInSingleToken tsMode) $ \req -> do
         TestEnv{..} <- genTestEnv verifierPKH verifierPrvKey req
         res <- evalStateT (runTest TestEnv{..}) mempty
         if not tsShouldFail
@@ -75,19 +81,19 @@ encoinsTxTest pParams verifierPKH verifierPrvKey mode TestSpecification{..} = pr
             addAdaTo teChangeAddr maxTxFee
             let addrRelay    = fromJust $ bech32ToAddress "addr_test1qqmg05vsxgf04lke32qkaqt09rt690qzulujazhk39xtkcqnt9a4spnfrrlpp7puw2lcx2zudf49ewyza4q9ha08qhdqheec82"
                 addrTreasury = fromJust $ bech32ToAddress "addr_test1qzdzazh6ndc9mm4am3fafz6udq93tmdyfrm57pqfd3mgctgu4v44ltv85gw703f2dse7tz8geqtm4n9cy6p3lre785cqutvf6a"
-            buildTx pParams Nothing teChangeAddr [encoinsTx (addrRelay, addrTreasury) teEncoinsParams teRedeemer mode]
+            buildTx pParams Nothing teChangeAddr [encoinsTx (addrRelay, addrTreasury) teEncoinsParams teRedeemer tsMode]
         setTxInputs TestEnv{..} = do
             specifyWalletUtxos (teV + teFees + teDeposits) teChangeAddr
             specifyLedgerUtxos TestEnv{..}
-            let valFee = protocolFeeValue mode teV
+            let valFee = protocolFeeValue tsMode teV
                 encoinsCs = encoinsSymbol teEncoinsParams
                 mint = Value . PAM.fromList . (:[]) . (encoinsCs,) . PAM.fromList $ teMint
-            case mode of
+            case tsMode of
                 WalletMode -> do
                     when (teV < 2) $ addValueTo teLedgerAddr $ Ada.lovelaceValueOf (max 0 (-teV) * 1_000_000 + minAdaTxOutInLedger)
                     addValueTo teChangeAddr (fst $ Value.split mint)
                 LedgerMode -> do
-                    when (teV + teDeposits < 0) $ addValueTo teLedgerAddr $ Ada.lovelaceValueOf ((-teV - teDeposits) * 1_000_000 + minAdaTxOutInLedger) 
+                    when (teV + teDeposits < 0) $ addValueTo teLedgerAddr $ Ada.lovelaceValueOf ((-teV - teDeposits) * 1_000_000 + minAdaTxOutInLedger)
                     addValueTo teLedgerAddr (fst (Value.split mint) <> scale 2 minTxOutValueInLedger)
 
         setSetupTokens TestEnv{..} = do

@@ -47,16 +47,17 @@ data TestSpecification = TestSpecification
     , tsLedgerUtxosAmt           :: Int
     , tsMaxAdaInSingleToken      :: Integer
     , tsShouldFail               :: Bool
+    , tsMode                     :: EncoinsMode
     } deriving (Show, Generic)
 
 instance Default TestSpecification where
-    def = TestSpecification 0 0 0 0 1000 False
+    def = TestSpecification 0 0 0 0 1000 False WalletMode
 
 instance FromJSON TestSpecification where
    parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
 getSpecifications :: IO [(String, TestSpecification)]
-getSpecifications = (("no specification", def) :) <$> do
+getSpecifications = do
     let d = "test/specifications"
     names <- listDirectory d
     fmap catMaybes . forM names $ \n -> fmap (n,) <$> decodeFileStrict (d <> "/" <> n)
