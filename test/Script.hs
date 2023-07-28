@@ -19,7 +19,7 @@ import           ENCOINS.Core.OnChain
 import           GHC.IO                     (unsafePerformIO)
 import           Internal                   (TestEnv (..), TestSpecification (..), genEncoinsParams, genRequest, genTestEnv,
                                              getSpecifications)
-import           Ledger.Ada                 (lovelaceValueOf)
+import           Ledger.Ada                 (lovelaceValueOf, adaValueOf)
 import           Ledger.Value               (adaOnlyValue, isZero, leq)
 import           Plutus.V2.Ledger.Api       (Address, BuiltinByteString, BuiltinData (..), CurrencySymbol, Data (..), Datum (..),
                                              OutputDatum (..), Redeemer (Redeemer), ScriptContext (..), ScriptPurpose (..),
@@ -43,9 +43,9 @@ runScriptTest = do
         testMp =  mintingPolicyTest ledgerParams verifierPKH verifierPrvKey
 
     hspec $ describe "script tests" $ do
-        
+
         it "ledger validator" $ ledgerValidatorTest ledgerParams verifierPKH
-        
+
         context "minting policy" $ do
                 it "wallet mode" $ testMp def{tsMode = WalletMode}
                 it "ledger mode" $ testMp def{tsMode = LedgerMode}
@@ -75,7 +75,8 @@ mintingPolicyTest ledgerParams verifierPKH verifierPrvKey TestSpecification{..} 
             valDeposits = lovelaceValueOf $ teDeposits * 1_000_000
 
             tokenNameToVal name = mkEncoinsValue encoinsCs [(name, 1)]
-            ledgerInVal  = map ((minTxOutValueInLedger <>) . tokenNameToVal . fst) $ filter ((== -1) . snd) teMint
+                           -- 7 condition
+            ledgerInVal  = adaValueOf 1000 : map ((minTxOutValueInLedger <>) . tokenNameToVal . fst) (filter ((== -1) . snd) teMint)
             ledgerOutVal = map ((minTxOutValueInLedger <>) . tokenNameToVal . fst) $ filter ((==  1) . snd) teMint
             txMint = Value . PAM.fromList . (:[]) . (encoinsCs,) . PAM.fromList $ teMint
             (ledgerInVal', ledgerOutVal') = balanceLedgerInsOuts ledgerInVal ledgerOutVal (val <> valDeposits <> txMint)
@@ -115,12 +116,10 @@ mintingPolicyTest ledgerParams verifierPKH verifierPrvKey TestSpecification{..} 
             (ScriptContext
                 txInfo
                 (Minting encoinsCs))
-
-        
     where
         walletSpecifiedOutputs addr = replicate tsWalletUtxosAmt $ mkWalletTxOut addr (lovelaceValueOf $ tsAdaInWalletUtxo * 1_000_000)
         walletSpecifiedInputs addr = map (TxInInfo ref) $ walletSpecifiedOutputs addr
-        ledgerSpecifiedOutputs addr cs = 
+        ledgerSpecifiedOutputs addr cs =
             let v = minTxOutValueInLedger <> singleton cs "0000000000000000000000000000000000000000000000000000000000000000" 1
             in replicate tsLedgerUtxosAmt $ mkLedgerTxOut addr v
         ledgerSpecifiedInputs addr cs = map (TxInInfo ref) $ ledgerSpecifiedOutputs addr cs
