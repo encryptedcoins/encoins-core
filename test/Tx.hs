@@ -35,20 +35,20 @@ import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
 import           PlutusAppsExtra.Utils.Datum   (inlinedUnitInTxOut)
 import qualified PlutusTx.AssocMap             as PAM
 import           PlutusTx.Builtins             (BuiltinByteString)
-import           Test.Hspec                    (context, describe, hspec, it, shouldSatisfy)
+import           Test.Hspec                    (context, describe, hspec, it, shouldSatisfy, runIO, SpecWith, Spec)
 import           Test.QuickCheck               (Arbitrary (arbitrary), Property, choose, discard, forAll, generate, property,
                                                 withMaxSuccess)
 
-txSpec :: IO ()
+txSpec :: Spec
 txSpec = do
-    TestConfig{..}      <- either error id <$> eitherDecodeFileStrict "test/testConfig.json"
-    verifierPKH         <- either error id <$> eitherDecodeFileStrict tcVerifierPkhFile
-    verifierPrvKey      <- either error id <$> eitherDecodeFileStrict tcVerifierPrvKeyFile
-    pParams             <- getProtocolParams tcProtocolParamsFile tcNetworkId
-    testSpecsifications <- getSpecifications
+    TestConfig{..}      <- runIO $ either error id <$> eitherDecodeFileStrict "test/testConfig.json"
+    verifierPKH         <- runIO $ either error id <$> eitherDecodeFileStrict tcVerifierPkhFile
+    verifierPrvKey      <- runIO $ either error id <$> eitherDecodeFileStrict tcVerifierPrvKeyFile
+    pParams             <- runIO $ getProtocolParams tcProtocolParamsFile tcNetworkId
+    testSpecsifications <- runIO getSpecifications
     let testTx = encoinsTxTest pParams verifierPKH verifierPrvKey
 
-    hspec $ describe "encoinsTx" $ do
+    describe "encoinsTx" $ do
             
         context "no specification" $ do
             it "wallet mode" $ testTx def{tsMode = WalletMode}

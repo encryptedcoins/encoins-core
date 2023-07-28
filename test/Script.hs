@@ -29,20 +29,20 @@ import           PlutusAppsExtra.Test.Utils (emptyInfo, testMintingPolicy, testV
 import qualified PlutusTx.AssocMap          as PAM
 import           PlutusTx.Prelude           (Group (inv), zero)
 import           Prelude                    hiding (readFile)
-import           Test.Hspec                 (Expectation, context, describe, expectationFailure, hspec, it)
+import           Test.Hspec                 (Expectation, context, describe, expectationFailure, hspec, it, Spec, runIO)
 import           Test.QuickCheck            (Property, Testable (property), forAll, ioProperty, whenFail)
 
-runScriptTest :: IO ()
-runScriptTest = do
-    pp                  <- fromJust . decode <$> readFile "test/protocol-parameters.json"
-    verifierPrvKey      <- either error id <$> eitherDecodeFileStrict "test/verifierPrvKey.json"
-    verifierPKH         <- either error id <$> eitherDecodeFileStrict "test/verifierPKH.json"
-    testSpecsifications <- getSpecifications
+scriptSpec :: Spec
+scriptSpec = do
+    pp                  <- runIO $ fromJust . decode <$> readFile "test/protocol-parameters.json"
+    verifierPrvKey      <- runIO $ either error id <$> eitherDecodeFileStrict "test/verifierPrvKey.json"
+    verifierPKH         <- runIO $ either error id <$> eitherDecodeFileStrict "test/verifierPKH.json"
+    testSpecsifications <- runIO getSpecifications
     let networkId = Testnet $ NetworkMagic 1
         ledgerParams = Params def (pParamsFromProtocolParams pp) networkId
         testMp =  mintingPolicyTest ledgerParams verifierPKH verifierPrvKey
 
-    hspec $ describe "script tests" $ do
+    describe "script tests" $ do
 
         it "ledger validator" $ ledgerValidatorTest ledgerParams verifierPKH
 
