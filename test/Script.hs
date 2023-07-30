@@ -41,7 +41,7 @@ scriptSpec = do
     testSpecsifications <- runIO getSpecifications
 
     let testMp = mintingPolicyTest pParams verifierPKH verifierPrvKey
-    
+
     describe "script tests" $ do
 
         it "ledger validator" $ ledgerValidatorTest pParams verifierPKH
@@ -75,31 +75,30 @@ mintingPolicyTest ledgerParams verifierPKH verifierPrvKey TestSpecification{..} 
             valDeposits = lovelaceValueOf $ teDeposits * 1_000_000
 
             tokenNameToVal name = mkEncoinsValue encoinsCs [(name, 1)]
-                           -- 7 condition
-            ledgerInVal  = minMaxTxOutValueInLedger : map ((minTxOutValueInLedger <>) . tokenNameToVal . fst) (filter ((== -1) . snd) teMint)
-            ledgerOutVal = map ((minTxOutValueInLedger <>) . tokenNameToVal . fst) $ filter ((==  1) . snd) teMint
+            ledgerInVal  = map ((minTxOutValueInLedger <>) . tokenNameToVal . fst) (filter ((== -1) . snd) teMint)
+            ledgerOutVal = minMaxTxOutValueInLedger : map ((minTxOutValueInLedger <>) . tokenNameToVal . fst) (filter ((==  1) . snd) teMint)
             txMint = Value . PAM.fromList . (:[]) . (encoinsCs,) . PAM.fromList $ teMint
             (ledgerInVal', ledgerOutVal') = balanceLedgerInsOuts ledgerInVal ledgerOutVal (val <> valDeposits <> txMint)
 
             ledgerIns
-                | tsMode == WalletMode && teV > 0 = [mkLedgerTxIn teLedgerAddr minTxOutValueInLedger]
-                | tsMode == WalletMode            = [mkLedgerTxIn teLedgerAddr $ inv val <> minTxOutValueInLedger]
-                | otherwise                     =  mkLedgerTxIn teLedgerAddr <$> ledgerInVal'
+                | tsMode == WalletMode && teV > 0 = [mkLedgerTxIn teLedgerAddr minMaxTxOutValueInLedger]
+                | tsMode == WalletMode            = [mkLedgerTxIn teLedgerAddr $ inv val <> minMaxTxOutValueInLedger]
+                | otherwise                       =  mkLedgerTxIn teLedgerAddr <$> ledgerInVal'
 
             ledgerOuts
-                | tsMode == WalletMode && teV > 0 = [mkLedgerTxOut teLedgerAddr $ val <> minTxOutValueInLedger]
-                | tsMode == WalletMode            = [mkLedgerTxOut teLedgerAddr minTxOutValueInLedger]
-                | otherwise                     =  mkLedgerTxOut teLedgerAddr <$> ledgerOutVal'
+                | tsMode == WalletMode && teV > 0 = [mkLedgerTxOut teLedgerAddr $ val <> minMaxTxOutValueInLedger]
+                | tsMode == WalletMode            = [mkLedgerTxOut teLedgerAddr minMaxTxOutValueInLedger]
+                | otherwise                       =  mkLedgerTxOut teLedgerAddr <$> ledgerOutVal'
 
             waletTokensIn = if tsMode == WalletMode then mkEncoinsValue encoinsCs $ map (negate <$>) $ filter ((== (-1)) . snd) teMint else mempty
             walletIns
                 | teV + teFees + teDeposits > 0 = [mkWalletTxIn teChangeAddr $ lovelaceValueOf ((teV + teFees + teDeposits) * 1_000_000) <> waletTokensIn]
-                | otherwise               = [mkWalletTxIn teChangeAddr waletTokensIn]
+                | otherwise                     = [mkWalletTxIn teChangeAddr waletTokensIn]
 
             walletTokensOut = if tsMode == WalletMode then mkEncoinsValue encoinsCs $ filter ((== 1) . snd) teMint else mempty
             walletOuts
                 | teV + teFees + teDeposits > 0 = [mkWalletTxOut teChangeAddr walletTokensOut]
-                | otherwise               = [mkWalletTxOut teChangeAddr (walletTokensOut <> lovelaceValueOf (-(teV + teFees + teDeposits) * 1_000_000))]
+                | otherwise                     = [mkWalletTxOut teChangeAddr (walletTokensOut <> lovelaceValueOf (-(teV + teFees + teDeposits) * 1_000_000))]
             txInfo = emptyInfo
                 { txInfoReferenceInputs = [mkLedgerTxIn teLedgerAddr beacon]
                 , txInfoMint            = txMint

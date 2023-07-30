@@ -85,8 +85,7 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
         setTxInputs TestEnv{..} = do
             specifyWalletUtxos (teV + teFees + teDeposits) teChangeAddr
             specifyLedgerUtxos TestEnv{..}
-            -- 7 condition
-            addValueTo teLedgerAddr minMaxTxOutValueInLedger
+            addValueTo teLedgerAddr minMaxTxOutValueInLedger -- For Condition 7
             let valFee = protocolFeeValue tsMode teV
                 encoinsCs = encoinsSymbol teEncoinsParams
                 mint = Value . PAM.fromList . (:[]) . (encoinsCs,) . PAM.fromList $ teMint

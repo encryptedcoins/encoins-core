@@ -44,8 +44,8 @@ import           Tx                            (txSpec)
 main :: IO ()
 main = do
     hspec $ do
-        txSpec
         scriptSpec
+        txSpec
     writeEncoinsSetup
 
 -- A helper function to convert Plutus data to JSON
