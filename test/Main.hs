@@ -42,9 +42,11 @@ import           Test.Hspec                    (hspec)
 import           Tx                            (txSpec)
 
 main :: IO ()
-main = hspec $ do
-    txSpec
-    scriptSpec
+main = do
+    hspec $ do
+        txSpec
+        scriptSpec
+    writeEncoinsSetup
 
 -- A helper function to convert Plutus data to JSON
 mkSchema :: Data -> String
@@ -73,13 +75,13 @@ writeEncoinsSetup = do
     -- Writing a new bulletproof setup to JSON
     bulletproofSetup <- randomIO :: IO BulletproofSetup
     writeFileJSON "result/bulletproof_setup.json" bulletproofSetup
-    -- Printing ENCOINS minting policy parameters
+    -- Writing ENCOINS minting policy parameters to JSON
     writeFileJSON "result/encoinsPolicyParameters.json" $ toEncoinsPolicyParams encoinsPar
     -- Writing ENCOINS currency symbol to JSON
     writeFileJSON "result/encoinsPolicyId.json" $ toJSON encoinsSymb
     -- Writing ENCOINS minting policy to JSON
     writeFileJSON "result/encoinsPolicy.json" $ toJSON $ encoinsPolicy encoinsPar
-    -- Writing current staking address to JSON
+    -- Writing current ENCOINS Ledger address to JSON
     writeFileJSON "result/ledgerAddr.json" $ toJSON ledgerAddr
 
     print "Done!"

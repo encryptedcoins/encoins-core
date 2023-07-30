@@ -21,7 +21,7 @@ import qualified Data.Map                      as Map
 import           Data.Maybe                    (fromJust)
 import           ENCOINS.Core.OffChain         (EncoinsMode (..), encoinsTx, protocolFeeValue)
 import           ENCOINS.Core.OnChain          (beaconAssetClass, encoinsSymbol, ledgerValidatorAddress, minAdaTxOutInLedger,
-                                                minTxOutValueInLedger, stakeOwnerToken)
+                                                minTxOutValueInLedger, minMaxTxOutValueInLedger, stakeOwnerToken)
 import           Internal                      (TestConfig (..), TestEnv (..), TestSpecification (..), genRequest, genTestEnv,
                                                 getSpecifications)
 import           Ledger                        (Address (..), DecoratedTxOut (..), TxId (..), TxOutRef (..), Value,
@@ -41,7 +41,7 @@ import           Test.QuickCheck               (Arbitrary (arbitrary), Property,
 
 txSpec :: Spec
 txSpec = do
-    TestConfig{..}      <- runIO $ either error id <$> eitherDecodeFileStrict "test/testConfig.json"
+    TestConfig{..}      <- runIO $ either error id <$> eitherDecodeFileStrict "test/configuration/testConfig.json"
     verifierPKH         <- runIO $ either error id <$> eitherDecodeFileStrict tcVerifierPkhFile
     verifierPrvKey      <- runIO $ either error id <$> eitherDecodeFileStrict tcVerifierPrvKeyFile
     pParams             <- runIO $ getProtocolParams tcProtocolParamsFile tcNetworkId
@@ -86,7 +86,7 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
             specifyWalletUtxos (teV + teFees + teDeposits) teChangeAddr
             specifyLedgerUtxos TestEnv{..}
             -- 7 condition
-            addAdaTo teLedgerAddr 1000
+            addValueTo teLedgerAddr minMaxTxOutValueInLedger
             let valFee = protocolFeeValue tsMode teV
                 encoinsCs = encoinsSymbol teEncoinsParams
                 mint = Value . PAM.fromList . (:[]) . (encoinsCs,) . PAM.fromList $ teMint

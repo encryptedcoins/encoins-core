@@ -17,7 +17,7 @@ import           Data.Maybe                 (fromJust)
 import           ENCOINS.Core.OffChain      (EncoinsMode (..))
 import           ENCOINS.Core.OnChain
 import           GHC.IO                     (unsafePerformIO)
-import           Internal                   (TestEnv (..), TestSpecification (..), genEncoinsParams, genRequest, genTestEnv,
+import           Internal                   (TestConfig (..), TestEnv (..), TestSpecification (..), genEncoinsParams, genRequest, genTestEnv,
                                              getSpecifications)
 import           Ledger.Ada                 (lovelaceValueOf, adaValueOf)
 import           Ledger.Value               (adaOnlyValue, isZero, leq)
@@ -25,7 +25,7 @@ import           Plutus.V2.Ledger.Api       (Address, BuiltinByteString, Builtin
                                              OutputDatum (..), Redeemer (Redeemer), ScriptContext (..), ScriptPurpose (..),
                                              ToData (..), TokenName (..), TxId (..), TxInInfo (..), TxInfo (..), TxOut (..),
                                              TxOutRef (..), Value (..), singleton)
-import           PlutusAppsExtra.Test.Utils (emptyInfo, testMintingPolicy, testValidator)
+import           PlutusAppsExtra.Test.Utils (emptyInfo, testMintingPolicy, testValidator, getProtocolParams)
 import qualified PlutusTx.AssocMap          as PAM
 import           PlutusTx.Prelude           (Group (inv), zero)
 import           Prelude                    hiding (readFile)
@@ -34,17 +34,17 @@ import           Test.QuickCheck            (Property, Testable (property), forA
 
 scriptSpec :: Spec
 scriptSpec = do
-    pp                  <- runIO $ fromJust . decode <$> readFile "test/protocol-parameters.json"
-    verifierPrvKey      <- runIO $ either error id <$> eitherDecodeFileStrict "test/verifierPrvKey.json"
-    verifierPKH         <- runIO $ either error id <$> eitherDecodeFileStrict "test/verifierPKH.json"
+    TestConfig{..}      <- runIO $ either error id <$> eitherDecodeFileStrict "test/configuration/testConfig.json"
+    verifierPKH         <- runIO $ either error id <$> eitherDecodeFileStrict tcVerifierPkhFile
+    verifierPrvKey      <- runIO $ either error id <$> eitherDecodeFileStrict tcVerifierPrvKeyFile
+    pParams             <- runIO $ getProtocolParams tcProtocolParamsFile tcNetworkId
     testSpecsifications <- runIO getSpecifications
-    let networkId = Testnet $ NetworkMagic 1
-        ledgerParams = Params def (pParamsFromProtocolParams pp) networkId
-        testMp =  mintingPolicyTest ledgerParams verifierPKH verifierPrvKey
 
+    let testMp = mintingPolicyTest pParams verifierPKH verifierPrvKey
+    
     describe "script tests" $ do
 
-        it "ledger validator" $ ledgerValidatorTest ledgerParams verifierPKH
+        it "ledger validator" $ ledgerValidatorTest pParams verifierPKH
 
         context "minting policy" $ do
                 it "wallet mode" $ testMp def{tsMode = WalletMode}
@@ -76,7 +76,7 @@ mintingPolicyTest ledgerParams verifierPKH verifierPrvKey TestSpecification{..} 
 
             tokenNameToVal name = mkEncoinsValue encoinsCs [(name, 1)]
                            -- 7 condition
-            ledgerInVal  = adaValueOf 1000 : map ((minTxOutValueInLedger <>) . tokenNameToVal . fst) (filter ((== -1) . snd) teMint)
+            ledgerInVal  = minMaxTxOutValueInLedger : map ((minTxOutValueInLedger <>) . tokenNameToVal . fst) (filter ((== -1) . snd) teMint)
             ledgerOutVal = map ((minTxOutValueInLedger <>) . tokenNameToVal . fst) $ filter ((==  1) . snd) teMint
             txMint = Value . PAM.fromList . (:[]) . (encoinsCs,) . PAM.fromList $ teMint
             (ledgerInVal', ledgerOutVal') = balanceLedgerInsOuts ledgerInVal ledgerOutVal (val <> valDeposits <> txMint)

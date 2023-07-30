@@ -47,6 +47,12 @@ minAdaTxOutInLedger = 2_000_000
 minTxOutValueInLedger :: Value
 minTxOutValueInLedger = lovelaceValueOf minAdaTxOutInLedger
 
+minMaxAdaTxOutInLedger :: Integer
+minMaxAdaTxOutInLedger = 1000_000_000
+
+minMaxTxOutValueInLedger :: Value
+minMaxTxOutValueInLedger = lovelaceValueOf minMaxAdaTxOutInLedger
+
 depositMultiplier :: Integer
 depositMultiplier = 2
 
