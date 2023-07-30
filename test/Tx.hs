@@ -21,7 +21,7 @@ import qualified Data.Map                      as Map
 import           Data.Maybe                    (fromJust)
 import           ENCOINS.Core.OffChain         (EncoinsMode (..), encoinsTx, protocolFeeValue)
 import           ENCOINS.Core.OnChain          (beaconAssetClass, encoinsSymbol, ledgerValidatorAddress, minAdaTxOutInLedger,
-                                                minTxOutValueInLedger, stakeOwnerToken, minMaxTxOutValueInLedger)
+                                                minTxOutValueInLedger, minMaxTxOutValueInLedger, stakeOwnerToken)
 import           Internal                      (TestConfig (..), TestEnv (..), TestSpecification (..), genRequest, genTestEnv,
                                                 getSpecifications)
 import           Ledger                        (Address (..), DecoratedTxOut (..), TxId (..), TxOutRef (..), Value,
@@ -35,20 +35,20 @@ import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
 import           PlutusAppsExtra.Utils.Datum   (inlinedUnitInTxOut)
 import qualified PlutusTx.AssocMap             as PAM
 import           PlutusTx.Builtins             (BuiltinByteString)
-import           Test.Hspec                    (context, describe, hspec, it, shouldSatisfy)
+import           Test.Hspec                    (context, describe, hspec, it, shouldSatisfy, runIO, SpecWith, Spec)
 import           Test.QuickCheck               (Arbitrary (arbitrary), Property, choose, discard, forAll, generate, property,
                                                 withMaxSuccess)
 
-runTransactionTest :: IO ()
-runTransactionTest = do
-    TestConfig{..}      <- either error id <$> eitherDecodeFileStrict "test/configuration/testConfig.json"
-    verifierPKH         <- either error id <$> eitherDecodeFileStrict tcVerifierPkhFile
-    verifierPrvKey      <- either error id <$> eitherDecodeFileStrict tcVerifierPrvKeyFile
-    pParams             <- getProtocolParams tcProtocolParamsFile tcNetworkId
-    testSpecsifications <- getSpecifications
+txSpec :: Spec
+txSpec = do
+    TestConfig{..}      <- runIO $ either error id <$> eitherDecodeFileStrict "test/configuration/testConfig.json"
+    verifierPKH         <- runIO $ either error id <$> eitherDecodeFileStrict tcVerifierPkhFile
+    verifierPrvKey      <- runIO $ either error id <$> eitherDecodeFileStrict tcVerifierPrvKeyFile
+    pParams             <- runIO $ getProtocolParams tcProtocolParamsFile tcNetworkId
+    testSpecsifications <- runIO getSpecifications
     let testTx = encoinsTxTest pParams verifierPKH verifierPrvKey
 
-    hspec $ describe "encoinsTx" $ do
+    describe "encoinsTx" $ do
             
         context "no specification" $ do
             it "wallet mode" $ testTx def{tsMode = WalletMode}
@@ -85,6 +85,7 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
         setTxInputs TestEnv{..} = do
             specifyWalletUtxos (teV + teFees + teDeposits) teChangeAddr
             specifyLedgerUtxos TestEnv{..}
+            addValueTo teLedgerAddr minMaxTxOutValueInLedger -- For Condition 7
             let valFee = protocolFeeValue tsMode teV
                 encoinsCs = encoinsSymbol teEncoinsParams
                 mint = Value . PAM.fromList . (:[]) . (encoinsCs,) . PAM.fromList $ teMint
