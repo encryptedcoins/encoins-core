@@ -42,9 +42,12 @@ import           Test.Hspec                    (hspec)
 import           Tx                            (txSpec)
 
 main :: IO ()
-main = hspec $ do
-    txSpec
-    scriptSpec
+main = do
+    writeEncoinsSetup
+    hspec $ do
+        scriptSpec
+        txSpec
+    
 
 -- A helper function to convert Plutus data to JSON
 mkSchema :: Data -> String
@@ -63,9 +66,9 @@ mkSchema (Constr n dats) = "{ \"constructor\": " ++ show n ++ ", \"fields\": [" 
 writeEncoinsSetup :: IO ()
 writeEncoinsSetup = do
     let encoinsPar     = (
-                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "b4f0e59cad20a8d1edfb61a540c3e501c9840be12e8fbb89274dd386e3f0fa3c") 3,
-                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "cf6a5d70dc23050c43082b92de5783b86f736d529ad81e5f8968330a65ddbb1e") 2,
-                toBuiltin $ fromJust $ decodeHex "BA1F8132201504C494C52CE3CC9365419D3446BD5A4DCDE19396AAC68070977D"
+                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "f94b7cf5e7dccafc7a8211b5e66412220639c7f87c1226f1a1ba284ca7bb7fe1") 5,
+                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "fea3f86d1b89c4a1979d2b76f13909b18c6a79afea4b5bbc57f8c772921f06a4") 1,
+                toBuiltin $ fromJust $ decodeHex "AB39EFD01872F96A4CA2534EB5959D737F1939094BEA19069EE7FE76ECE3494A"
             )
         encoinsSymb    = encoinsSymbol encoinsPar
         ledgerAddr     = ledgerValidatorAddress encoinsPar
@@ -73,13 +76,13 @@ writeEncoinsSetup = do
     -- Writing a new bulletproof setup to JSON
     bulletproofSetup <- randomIO :: IO BulletproofSetup
     writeFileJSON "result/bulletproof_setup.json" bulletproofSetup
-    -- Printing ENCOINS minting policy parameters
+    -- Writing ENCOINS minting policy parameters to JSON
     writeFileJSON "result/encoinsPolicyParameters.json" $ toEncoinsPolicyParams encoinsPar
     -- Writing ENCOINS currency symbol to JSON
     writeFileJSON "result/encoinsPolicyId.json" $ toJSON encoinsSymb
     -- Writing ENCOINS minting policy to JSON
     writeFileJSON "result/encoinsPolicy.json" $ toJSON $ encoinsPolicy encoinsPar
-    -- Writing current staking address to JSON
+    -- Writing current ENCOINS Ledger address to JSON
     writeFileJSON "result/ledgerAddr.json" $ toJSON ledgerAddr
 
     print "Done!"

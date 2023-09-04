@@ -21,7 +21,7 @@ import qualified Data.Map                      as Map
 import           Data.Maybe                    (fromJust)
 import           ENCOINS.Core.OffChain         (EncoinsMode (..), encoinsTx, protocolFeeValue)
 import           ENCOINS.Core.OnChain          (beaconAssetClass, encoinsSymbol, ledgerValidatorAddress, minAdaTxOutInLedger,
-                                                minTxOutValueInLedger, stakeOwnerToken)
+                                                minTxOutValueInLedger, minMaxTxOutValueInLedger, stakeOwnerToken)
 import           Internal                      (TestConfig (..), TestEnv (..), TestSpecification (..), genRequest, genTestEnv,
                                                 getSpecifications)
 import           Ledger                        (Address (..), DecoratedTxOut (..), TxId (..), TxOutRef (..), Value,
@@ -39,9 +39,12 @@ import           Test.Hspec                    (context, describe, hspec, it, sh
 import           Test.QuickCheck               (Arbitrary (arbitrary), Property, choose, discard, forAll, generate, property,
                                                 withMaxSuccess)
 
+depositMultiplier :: Integer
+depositMultiplier = 4
+
 txSpec :: Spec
 txSpec = do
-    TestConfig{..}      <- runIO $ either error id <$> eitherDecodeFileStrict "test/testConfig.json"
+    TestConfig{..}      <- runIO $ either error id <$> eitherDecodeFileStrict "test/configuration/testConfig.json"
     verifierPKH         <- runIO $ either error id <$> eitherDecodeFileStrict tcVerifierPkhFile
     verifierPrvKey      <- runIO $ either error id <$> eitherDecodeFileStrict tcVerifierPrvKeyFile
     pParams             <- runIO $ getProtocolParams tcProtocolParamsFile tcNetworkId
@@ -83,10 +86,9 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
                 addrTreasury = fromJust $ bech32ToAddress "addr_test1qzdzazh6ndc9mm4am3fafz6udq93tmdyfrm57pqfd3mgctgu4v44ltv85gw703f2dse7tz8geqtm4n9cy6p3lre785cqutvf6a"
             buildTx pParams Nothing teChangeAddr [encoinsTx (addrRelay, addrTreasury) teEncoinsParams teRedeemer tsMode]
         setTxInputs TestEnv{..} = do
-            specifyWalletUtxos (teV + teFees + teDeposits) teChangeAddr
+            specifyWalletUtxos (teV + teFees + depositMultiplier*teDeposits) teChangeAddr
             specifyLedgerUtxos TestEnv{..}
-            -- 7 condition
-            addAdaTo teLedgerAddr 1000
+            addValueTo teLedgerAddr minMaxTxOutValueInLedger -- For Condition 7
             let valFee = protocolFeeValue tsMode teV
                 encoinsCs = encoinsSymbol teEncoinsParams
                 mint = Value . PAM.fromList . (:[]) . (encoinsCs,) . PAM.fromList $ teMint
@@ -95,7 +97,7 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
                     when (teV < 2) $ addValueTo teLedgerAddr $ Ada.lovelaceValueOf (max 0 (-teV) * 1_000_000 + minAdaTxOutInLedger)
                     addValueTo teChangeAddr (fst $ Value.split mint)
                 LedgerMode -> do
-                    when (teV + teDeposits < 0) $ addValueTo teLedgerAddr $ Ada.lovelaceValueOf ((-teV - teDeposits) * 1_000_000 + minAdaTxOutInLedger)
+                    when (teV + depositMultiplier*teDeposits < 0) $ addValueTo teLedgerAddr $ Ada.lovelaceValueOf ((-teV - depositMultiplier*teDeposits) * 1_000_000 + minAdaTxOutInLedger)
                     addValueTo teLedgerAddr (fst (Value.split mint) <> scale 2 minTxOutValueInLedger)
 
         setSetupTokens TestEnv{..} = do

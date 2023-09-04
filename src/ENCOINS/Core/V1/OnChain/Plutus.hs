@@ -22,7 +22,7 @@
 module ENCOINS.Core.V1.OnChain.Plutus where
 
 import           Data.Maybe                          (fromJust)
-import           Ledger.Ada                          (lovelaceValueOf)
+import           Ledger.Ada                          (lovelaceValueOf, fromValue)
 import           Ledger.Tokens                       (token)
 import           Ledger.Typed.Scripts                (IsScriptContext (..), Language (..), Versioned (..))
 import           Ledger.Value                        (AssetClass (..), geq)
@@ -35,8 +35,8 @@ import           PlutusTx.Prelude
 import           Text.Hex                            (decodeHex)
 
 import           ENCOINS.Core.V1.OnChain.Internal    (EncoinsPolicyParams, EncoinsProtocolParams, EncoinsRedeemerOnChain,
-                                                      checkLedgerOutputValue1, depositMultiplier, encoinName, inputToBytes,
-                                                      ledgerValidatorCheck, minTxOutValueInLedger, toEncoinsPolicyParams)
+                                                      checkLedgerOutputValue1, encoinName, inputToBytes,
+                                                      ledgerValidatorCheck, minTxOutValueInLedger, toEncoinsPolicyParams, minAdaTxOutInLedger)
 import           ENCOINS.Orphans                     ()
 import           PlutusAppsExtra.Constraints.OnChain (filterUtxoProduced, filterUtxoSpent, tokensMinted, utxoProduced,
                                                       utxoReferenced)
@@ -67,15 +67,17 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v
       fees'        = abs fees
       valFees      = lovelaceValueOf (fees' * 1_000_000)
 
-      deposits     = depositMultiplier * sum (map snd inputs)
+      deposits     = sum (map snd inputs)
       valDeposits  = lovelaceValueOf (deposits * 1_000_000)
 
       deposits'    = if cond5 then deposits else 0
-      valDeposits' = lovelaceValueOf (deposits' * 1_000_000)
+      valDeposits' = lovelaceValueOf (deposits' * minAdaTxOutInLedger)
+
+      valToProtocol = val + valFees + valDeposits'
 
       cond0 = tokensMinted ctx $ fromList inputs
       cond1 = verifyEd25519Signature verifierPKH (hashRedeemer red) sig
-      cond2 = (v + fees' + deposits' >= 0) || utxoProduced info (\o -> txOutAddress o == changeAddr && txOutValue o `geq` (zero - val - valFees - valDeposits'))
+      cond2 = (fromValue valToProtocol >= 0) || utxoProduced info (\o -> txOutAddress o == changeAddr && (txOutValue o + valToProtocol) `geq` zero)
       cond3 = utxoReferenced info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` beacon)
 
       vMint = txInfoMint $ scriptContextTxInfo ctx

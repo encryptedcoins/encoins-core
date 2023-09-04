@@ -42,13 +42,16 @@ import           PlutusAppsExtra.Utils.Orphans             ()
 type EncoinsProtocolParams = (TxOutRef, TxOutRef, BuiltinByteString)
 
 minAdaTxOutInLedger :: Integer
-minAdaTxOutInLedger = 2_000_000
+minAdaTxOutInLedger = 4_000_000
 
 minTxOutValueInLedger :: Value
 minTxOutValueInLedger = lovelaceValueOf minAdaTxOutInLedger
 
-depositMultiplier :: Integer
-depositMultiplier = 2
+minMaxAdaTxOutInLedger :: Integer
+minMaxAdaTxOutInLedger = 1000_000_000
+
+minMaxTxOutValueInLedger :: Value
+minMaxTxOutValueInLedger = lovelaceValueOf minMaxAdaTxOutInLedger
 
 ---------------------------- Stake Owner Token Minting Policy --------------------------------------
 
