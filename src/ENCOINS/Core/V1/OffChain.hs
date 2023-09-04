@@ -198,10 +198,10 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
     tokensMintedTx (encoinsPolicyV par) (Aiken red) valMint
 
     -- Calculate deposits
-    let deposits     = depositMultiplier * sum (map snd inputs)
-        valDeposits  = lovelaceValueOf (deposits * 1_000_000)
+    let deposits     = sum (map snd inputs)
+        valDeposits  = lovelaceValueOf (deposits * minAdaTxOutInLedger)
         deposits'    = if mode == LedgerMode then deposits else 0
-        valDeposits' = lovelaceValueOf (deposits' * 1_000_000)
+        valDeposits' = lovelaceValueOf (deposits' * minAdaTxOutInLedger)
 
     -- Modify ENCOINS Ledger by the given value
     let valWithdraw = negate $ lovelaceValueOf (v * 1_000_000)
@@ -214,5 +214,6 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
         utxoProducedTx addrRelay    valFee (Just inlinedUnit)
         utxoProducedTx addrTreasury valFee (Just inlinedUnit)
         -- NOTE: withdrawing to a Plutus Script address is not possible
-        when (abs v - fees - deposits' > 0) $
+        let valToProtocol = valWithdraw - valFee - valFee - valDeposits'
+        when (fromValue valToProtocol > 0) $
             utxoProducedTx changeAddr (valWithdraw - valFee - valFee - valDeposits') Nothing

@@ -13,9 +13,10 @@ import           Data.Default               (Default (..))
 import           Data.Function              (on)
 import           Data.Functor               ((<&>))
 import           Data.List                  (sortBy)
+import           Data.Map                   (fromList, toList)
 import           Data.Maybe                 (catMaybes)
-import           ENCOINS.BaseTypes          (MintingPolarity (..))
-import           ENCOINS.Bulletproofs       (Secret (Secret), bulletproof, fromSecret, parseBulletproofParams, polarityToInteger)
+import           ENCOINS.BaseTypes          (MintingPolarity (..), fromGroupElement)
+import           ENCOINS.Bulletproofs       (Secret (Secret), bulletproof, fromSecret, parseBulletproofParams, polarityToInteger, Input (..))
 import           ENCOINS.Core.OffChain      (EncoinsMode (..), mkEncoinsRedeemerOnChain, protocolFee)
 import           ENCOINS.Core.OnChain
 import           ENCOINS.Crypto.Field       (toFieldElement)
@@ -129,22 +130,22 @@ genTestEnv verifierPKH verifierPrvKey encoinsRequest = do
     randomness <- randomIO
     changeAddress <- genPubKeyAddress
     bulletproofSetup <- randomIO
-    let mode          = requestMode encoinsRequest
-        ledgerAddress = ledgerValidatorAddress encoinsParams
-        ps            = map (\i -> if i < 0 then Burn else Mint) req
-        secrets       = zipWith (\i g -> Secret g (toFieldElement i)) req gammas
-        v             = sum req
-        fees          = 2 * protocolFee mode v
-        par           = (ledgerAddress, changeAddress, fees)
-        bp            = parseBulletproofParams $ sha2_256 $ toBytes par
-        inputs        = zipWith (\(_, bs) p -> (bs, p)) (map (fromSecret bulletproofSetup) secrets) ps
-        (_, _, proof) = bulletproof bulletproofSetup bp secrets ps randomness
-        signature  = ""
-        red = (par, (v, inputs), proof, signature)
-        redOnChain = mkEncoinsRedeemerOnChain verifierPrvKey red
+    let mode                = requestMode encoinsRequest
+        ledgerAddress       = ledgerValidatorAddress encoinsParams
+        ps                  = map (\i -> if i < 0 then Burn else Mint) req
+        secrets             = zipWith (\i g -> Secret g (toFieldElement i)) req gammas
+        v                   = sum req
+        fees                = 2 * protocolFee mode v
+        par                 = (ledgerAddress, changeAddress, fees)
+        bp                  = parseBulletproofParams $ sha2_256 $ toBytes par
+        (_, inputs', proof) = bulletproof bulletproofSetup bp secrets ps randomness
+        inputs              = toList . fromList $ map (\(Input g p) -> (fromGroupElement g, p)) inputs'
+        signature           = ""
+        red                 = (par, (v, inputs), proof, signature)
+        redOnChain          = mkEncoinsRedeemerOnChain verifierPrvKey red
         deposits = case mode of
             WalletMode -> 0
-            LedgerMode -> depositMultiplier * sum (polarityToInteger <$> ps)
+            LedgerMode -> sum (polarityToInteger <$> ps)
     return TestEnv
         { teReq           = req
         , teInputs        = inputs

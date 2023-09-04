@@ -19,7 +19,7 @@ import           ENCOINS.Core.OnChain
 import           GHC.IO                     (unsafePerformIO)
 import           Internal                   (TestConfig (..), TestEnv (..), TestSpecification (..), genEncoinsParams, genRequest, genTestEnv,
                                              getSpecifications)
-import           Ledger.Ada                 (lovelaceValueOf, adaValueOf)
+import           Ledger.Ada                 (lovelaceValueOf, adaValueOf, fromValue)
 import           Ledger.Value               (adaOnlyValue, isZero, leq)
 import           Plutus.V2.Ledger.Api       (Address, BuiltinByteString, BuiltinData (..), CurrencySymbol, Data (..), Datum (..),
                                              OutputDatum (..), Redeemer (Redeemer), ScriptContext (..), ScriptPurpose (..),
@@ -71,8 +71,9 @@ mintingPolicyTest ledgerParams verifierPKH verifierPrvKey TestSpecification{..} 
         let encoinsCs = encoinsSymbol teEncoinsParams
             beaconSymbol = beaconCurrencySymbol teEncoinsParams
             beacon = singleton beaconSymbol beaconTokenName 1
-            val = lovelaceValueOf $ teV * 1_000_000
-            valDeposits = lovelaceValueOf $ teDeposits * 1_000_000
+            val  = lovelaceValueOf $ teV * 1_000_000
+            fees = lovelaceValueOf $ teFees * 1_000_000
+            valDeposits = lovelaceValueOf $ teDeposits * minAdaTxOutInLedger
 
             tokenNameToVal name = mkEncoinsValue encoinsCs [(name, 1)]
             ledgerInVal  = map ((minTxOutValueInLedger <>) . tokenNameToVal . fst) (filter ((== -1) . snd) teMint)
@@ -91,14 +92,15 @@ mintingPolicyTest ledgerParams verifierPKH verifierPrvKey TestSpecification{..} 
                 | otherwise                       =  mkLedgerTxOut teLedgerAddr <$> ledgerOutVal'
 
             waletTokensIn = if tsMode == WalletMode then mkEncoinsValue encoinsCs $ map (negate <$>) $ filter ((== (-1)) . snd) teMint else mempty
+            valToProtocol = val <> fees <> valDeposits
             walletIns
-                | teV + teFees + teDeposits > 0 = [mkWalletTxIn teChangeAddr $ lovelaceValueOf ((teV + teFees + teDeposits) * 1_000_000) <> waletTokensIn]
-                | otherwise                     = [mkWalletTxIn teChangeAddr waletTokensIn]
+                | fromValue valToProtocol > 0 = [mkWalletTxIn teChangeAddr $ valToProtocol <> waletTokensIn]
+                | otherwise                   = [mkWalletTxIn teChangeAddr waletTokensIn]
 
             walletTokensOut = if tsMode == WalletMode then mkEncoinsValue encoinsCs $ filter ((== 1) . snd) teMint else mempty
             walletOuts
-                | teV + teFees + teDeposits > 0 = [mkWalletTxOut teChangeAddr walletTokensOut]
-                | otherwise                     = [mkWalletTxOut teChangeAddr (walletTokensOut <> lovelaceValueOf (-(teV + teFees + teDeposits) * 1_000_000))]
+                | fromValue valToProtocol > 0 = [mkWalletTxOut teChangeAddr walletTokensOut]
+                | otherwise                   = [mkWalletTxOut teChangeAddr (walletTokensOut <> inv valToProtocol)]
             txInfo = emptyInfo
                 { txInfoReferenceInputs = [mkLedgerTxIn teLedgerAddr beacon]
                 , txInfoMint            = txMint
