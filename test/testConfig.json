@@ -1,5 +1,0 @@
-{ "protocol_params_file"  : "test/protocol-parameters.json"
-, "verifier_pkh_file"     : "test/verifierPKH.json"
-, "verifier_prv_key_file" : "test/verifierPrvKey.json"
-, "network_id"            : {"tag" : "Testnet", "contents" : 1}
-}
