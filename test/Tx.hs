@@ -39,9 +39,6 @@ import           Test.Hspec                    (context, describe, hspec, it, sh
 import           Test.QuickCheck               (Arbitrary (arbitrary), Property, choose, discard, forAll, generate, property,
                                                 withMaxSuccess)
 
-depositMultiplier :: Integer
-depositMultiplier = 4
-
 txSpec :: Spec
 txSpec = do
     TestConfig{..}      <- runIO $ either error id <$> eitherDecodeFileStrict "test/configuration/testConfig.json"
@@ -52,11 +49,11 @@ txSpec = do
     let testTx = encoinsTxTest pParams verifierPKH verifierPrvKey
 
     describe "encoinsTx" $ do
-            
+
         context "no specification" $ do
             it "wallet mode" $ testTx def{tsMode = WalletMode}
             it "ledger mode" $ testTx def{tsMode = LedgerMode}
-        
+
         context "specifications" $ do
             forM_ testSpecsifications $ \(name, tSpec) -> do
                 context (name <> ":") $ it (show tSpec) $ do
@@ -86,7 +83,7 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
                 addrTreasury = fromJust $ bech32ToAddress "addr_test1qzdzazh6ndc9mm4am3fafz6udq93tmdyfrm57pqfd3mgctgu4v44ltv85gw703f2dse7tz8geqtm4n9cy6p3lre785cqutvf6a"
             buildTx pParams Nothing teChangeAddr [encoinsTx (addrRelay, addrTreasury) teEncoinsParams teRedeemer tsMode]
         setTxInputs TestEnv{..} = do
-            specifyWalletUtxos (teV + teFees + depositMultiplier*teDeposits) teChangeAddr
+            specifyWalletUtxos (teV + teFees + minAdaTxOutInLedger*teDeposits) teChangeAddr
             specifyLedgerUtxos TestEnv{..}
             addValueTo teLedgerAddr minMaxTxOutValueInLedger -- For Condition 7
             let valFee = protocolFeeValue tsMode teV
@@ -97,7 +94,7 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
                     when (teV < 2) $ addValueTo teLedgerAddr $ Ada.lovelaceValueOf (max 0 (-teV) * 1_000_000 + minAdaTxOutInLedger)
                     addValueTo teChangeAddr (fst $ Value.split mint)
                 LedgerMode -> do
-                    when (teV + depositMultiplier*teDeposits < 0) $ addValueTo teLedgerAddr $ Ada.lovelaceValueOf ((-teV - depositMultiplier*teDeposits) * 1_000_000 + minAdaTxOutInLedger)
+                    when (teV*1_000_000 + minAdaTxOutInLedger*teDeposits < 0) $ addValueTo teLedgerAddr $ Ada.lovelaceValueOf (-teV*1_000_000 - minAdaTxOutInLedger*teDeposits)
                     addValueTo teLedgerAddr (fst (Value.split mint) <> scale 2 minTxOutValueInLedger)
 
         setSetupTokens TestEnv{..} = do
