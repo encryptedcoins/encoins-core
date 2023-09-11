@@ -43,11 +43,10 @@ import           Tx                            (txSpec)
 
 main :: IO ()
 main = do
-    writeEncoinsSetup
     hspec $ do
         scriptSpec
         txSpec
-    
+    writeEncoinsSetup
 
 -- A helper function to convert Plutus data to JSON
 mkSchema :: Data -> String
@@ -66,9 +65,9 @@ mkSchema (Constr n dats) = "{ \"constructor\": " ++ show n ++ ", \"fields\": [" 
 writeEncoinsSetup :: IO ()
 writeEncoinsSetup = do
     let encoinsPar     = (
-                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "f94b7cf5e7dccafc7a8211b5e66412220639c7f87c1226f1a1ba284ca7bb7fe1") 5,
-                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "fea3f86d1b89c4a1979d2b76f13909b18c6a79afea4b5bbc57f8c772921f06a4") 1,
-                toBuiltin $ fromJust $ decodeHex "AB39EFD01872F96A4CA2534EB5959D737F1939094BEA19069EE7FE76ECE3494A"
+                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "ecf398352b88f8393bb9e6b9a802c1fd923bf694712edf0e7a2c52150632357b") 3,
+                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "d746c129e5e7159aba7b5bb96c29ded2e5c0db20e406fb96f094dc77eb57260e") 6,
+                toBuiltin $ fromJust $ decodeHex "4C151FC2942411024A014FEDF52268558A22A1BE8341DE7FC12A9588CB6EA847"
             )
         encoinsSymb    = encoinsSymbol encoinsPar
         ledgerAddr     = ledgerValidatorAddress encoinsPar
