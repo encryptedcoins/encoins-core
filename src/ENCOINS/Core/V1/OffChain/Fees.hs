@@ -11,11 +11,10 @@
 
 module ENCOINS.Core.V1.OffChain.Fees where
 
-import           Ledger.Ada                     (lovelaceValueOf)
-import           Ledger.Value                   (Value)
+import           ENCOINS.Core.V1.OffChain.Modes (EncoinsMode (..))
+import qualified Plutus.Script.Utils.Ada        as P
+import qualified Plutus.V2.Ledger.Api           as P
 import           PlutusTx.Prelude               hiding (mapM, (<$>), (<>))
-
-import           ENCOINS.Core.V1.OffChain.Modes (EncoinsMode(..))
 
 protocolFeeWalletMode :: Integer -> Integer
 protocolFeeWalletMode v
@@ -32,5 +31,5 @@ protocolFee mode v = case mode of
     WalletMode -> protocolFeeWalletMode v
     LedgerMode -> protocolFeeLedgerMode v
 
-protocolFeeValue :: EncoinsMode -> Integer -> Value
-protocolFeeValue mode v = lovelaceValueOf . (* 1_000_000) $ protocolFee mode v
+protocolFeeValue :: EncoinsMode -> Integer -> P.Value
+protocolFeeValue mode v = P.lovelaceValueOf . (* 1_000_000) $ protocolFee mode v

@@ -6,6 +6,7 @@
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TupleSections      #-}
 {-# LANGUAGE TypeFamilies       #-}
+{-# LANGUAGE ViewPatterns       #-}
 
 module Tx where
 import           Cardano.Node.Emulator         (Params (..))
@@ -14,28 +15,27 @@ import           Control.Monad                 (forM_, replicateM, replicateM_)
 import           Control.Monad.State           (MonadIO (..), evalStateT, gets, modify, when)
 import           Data.Aeson                    (eitherDecodeFileStrict)
 import qualified Data.ByteString               as BS
-import           Data.Default                  (Default(def))
+import           Data.Default                  (Default (def))
 import           Data.Digits                   (digits)
 import           Data.Either                   (isRight)
 import qualified Data.Map                      as Map
 import           Data.Maybe                    (fromJust)
 import           ENCOINS.Core.OffChain         (EncoinsMode (..), encoinsTx, protocolFeeValue)
 import           ENCOINS.Core.OnChain          (beaconAssetClass, encoinsSymbol, ledgerValidatorAddress, minAdaTxOutInLedger,
-                                                minTxOutValueInLedger, minMaxTxOutValueInLedger, stakeOwnerToken)
+                                                minMaxTxOutValueInLedger, minTxOutValueInLedger, stakeOwnerToken)
 import           Internal                      (TestConfig (..), TestEnv (..), TestSpecification (..), genRequest, genTestEnv,
                                                 getSpecifications)
 import           Ledger                        (Address (..), DecoratedTxOut (..), TxId (..), TxOutRef (..), Value,
-                                                _decoratedTxOutAddress, decoratedTxOutValue)
-import qualified Ledger.Ada                    as Ada
-import           Ledger.Value                  (CurrencySymbol (..), TokenName (..), Value (..), assetClassValue, scale)
-import qualified Ledger.Value                  as Value
-import           Plutus.V2.Ledger.Api          (Credential (..), toBuiltin)
+                                                _decoratedTxOutAddress, decoratedTxOutValue, toCardanoValue)
+import qualified Plutus.Script.Utils.Ada       as P
+import qualified Plutus.Script.Utils.Value     as P
+import           Plutus.V2.Ledger.Api          (Credential (..), CurrencySymbol (..), TokenName (..), toBuiltin)
 import           PlutusAppsExtra.Test.Utils    (TxTestM, buildTx, getProtocolParams, isOutOfResoursesError)
 import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
 import           PlutusAppsExtra.Utils.Datum   (inlinedUnitInTxOut)
 import qualified PlutusTx.AssocMap             as PAM
 import           PlutusTx.Builtins             (BuiltinByteString)
-import           Test.Hspec                    (context, describe, hspec, it, shouldSatisfy, runIO, SpecWith, Spec)
+import           Test.Hspec                    (Spec, SpecWith, context, describe, hspec, it, runIO, shouldSatisfy)
 import           Test.QuickCheck               (Arbitrary (arbitrary), Property, choose, discard, forAll, generate, property,
                                                 withMaxSuccess)
 
@@ -88,28 +88,30 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
             addValueTo teLedgerAddr minMaxTxOutValueInLedger -- For Condition 7
             let valFee = protocolFeeValue tsMode teV
                 encoinsCs = encoinsSymbol teEncoinsParams
-                mint = Value . PAM.fromList . (:[]) . (encoinsCs,) . PAM.fromList $ teMint
+                mint = P.Value . PAM.fromList . (:[]) . (encoinsCs,) . PAM.fromList $ teMint
             case tsMode of
                 WalletMode -> do
-                    when (teV < 2) $ addValueTo teLedgerAddr $ Ada.lovelaceValueOf (max 0 (-teV) * 1_000_000 + minAdaTxOutInLedger)
-                    addValueTo teChangeAddr (fst $ Value.split mint)
+                    when (teV < 2) $ addValueTo teLedgerAddr $ P.lovelaceValueOf (max 0 (-teV) * 1_000_000 + minAdaTxOutInLedger)
+                    addValueTo teChangeAddr (fst $ P.split mint)
                 LedgerMode -> do
-                    when (teV*1_000_000 + minAdaTxOutInLedger*teDeposits < 0) $ addValueTo teLedgerAddr $ Ada.lovelaceValueOf (-teV*1_000_000 - minAdaTxOutInLedger*teDeposits)
-                    addValueTo teLedgerAddr (fst (Value.split mint) <> scale 2 minTxOutValueInLedger)
+                    when (teV*1_000_000 + minAdaTxOutInLedger*teDeposits < 0) $ addValueTo teLedgerAddr $ P.lovelaceValueOf (-teV*1_000_000 - minAdaTxOutInLedger*teDeposits)
+                    addValueTo teLedgerAddr (fst (P.split mint) <> P.scale 2 minTxOutValueInLedger)
 
         setSetupTokens TestEnv{..} = do
             -- Set stake owner token
             let Address (ScriptCredential vh) sCred = ledgerValidatorAddress teEncoinsParams
+                v = either (error . show) id $ toCardanoValue $ stakeOwnerToken teEncoinsParams
             modify $ Map.insert (teEncoinsParams ^. _1) $
-                ScriptDecoratedTxOut vh sCred (stakeOwnerToken teEncoinsParams) inlinedUnitInTxOut Nothing Nothing
+                ScriptDecoratedTxOut vh sCred v inlinedUnitInTxOut Nothing Nothing
             -- Set beacon token
             let Address (ScriptCredential vh) sCred = ledgerValidatorAddress teEncoinsParams
+                v = either (error . show) id $ toCardanoValue $ P.assetClassValue (beaconAssetClass teEncoinsParams) 1
             modify $ Map.insert (teEncoinsParams ^. _2) $
-                ScriptDecoratedTxOut vh sCred (assetClassValue (beaconAssetClass teEncoinsParams) 1) inlinedUnitInTxOut Nothing Nothing
+                ScriptDecoratedTxOut vh sCred v inlinedUnitInTxOut Nothing Nothing
 
         specifyLedgerUtxos TestEnv{..} = do
             let Address (ScriptCredential vh) sCred = teLedgerAddr
-                v = minTxOutValueInLedger <> Value.singleton (encoinsSymbol teEncoinsParams) "00000000000000000000000000000000" 1
+                v = either (error . show) id $ toCardanoValue $ minTxOutValueInLedger <> P.singleton (encoinsSymbol teEncoinsParams) "00000000000000000000000000000000" 1
             replicateM_ tsLedgerUtxosAmt $ genStateTxOutRef >>= modify . flip Map.insert
                 (ScriptDecoratedTxOut vh sCred v inlinedUnitInTxOut Nothing Nothing)
 
@@ -118,20 +120,22 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
         specifyWalletUtxos totalV addr = do
             let utxosAmt' = max 1 tsWalletUtxosAmt
                 minAdaInUtxo = fromIntegral $ ceiling $ fromIntegral (1_000_000 * totalV) / fromIntegral utxosAmt'
-                adaInSingleUtxo = max (Ada.adaOf $ fromIntegral tsAdaInWalletUtxo) minAdaInUtxo
+                adaInSingleUtxo = max (P.adaOf $ fromIntegral tsAdaInWalletUtxo) minAdaInUtxo
                 Address (PubKeyCredential pkh) sCred = addr
+                v = either (error . show) id $ toCardanoValue $ P.toValue adaInSingleUtxo
             -- Create wallet utxos
             replicateM_ utxosAmt' $ genStateTxOutRef >>= modify . flip Map.insert
-                (PublicKeyDecoratedTxOut pkh sCred (Ada.toValue adaInSingleUtxo) Nothing Nothing)
+                (PublicKeyDecoratedTxOut pkh sCred v Nothing Nothing)
             -- Add random tokens
             tokens <- liftIO $ replicateM tsForeignTokensInWalletAmt genRandomToken
             forM_ tokens $ \token -> do
                 utxos <- gets $ Map.filter ((== addr) . _decoratedTxOutAddress)
                 n <- liftIO $ generate $ choose (0, length utxos - 1)
-                modify $ Map.adjust (& decoratedTxOutValue %~ (<> token)) (Map.keys utxos !! n)
+                let token' = either (error . show) id $ toCardanoValue token
+                modify $ Map.adjust (& decoratedTxOutValue %~ (<> token')) (Map.keys utxos !! n)
 
-addValueTo :: Address -> Value -> TxTestM ()
-addValueTo addr v = gets (Map.toList . Map.filter ((== addr) . _decoratedTxOutAddress)) >>= \case
+addValueTo :: Address -> P.Value -> TxTestM ()
+addValueTo addr (toCardanoValue -> Right v) = gets (Map.toList . Map.filter ((== addr) . _decoratedTxOutAddress)) >>= \case
     (ref, txOut):_ -> modify $ Map.insert ref (txOut & decoratedTxOutValue %~ (<> v))
     _              -> do
         let out = case addr of
@@ -139,9 +143,10 @@ addValueTo addr v = gets (Map.toList . Map.filter ((== addr) . _decoratedTxOutAd
                 (Address (ScriptCredential vh)  mbSc) -> ScriptDecoratedTxOut vh mbSc v inlinedUnitInTxOut Nothing Nothing
         ref <- genStateTxOutRef
         modify (Map.singleton ref out <>)
+addValueTo _ _ = error "addValueTo: isLeft toCardanoValue"
 
 addLovelaceTo :: Address -> Integer -> TxTestM ()
-addLovelaceTo addr i = addValueTo addr (Ada.lovelaceValueOf i)
+addLovelaceTo addr i = addValueTo addr (P.lovelaceValueOf i)
 
 addAdaTo :: Address -> Integer -> TxTestM ()
 addAdaTo addr i = addLovelaceTo addr (i * 1_000_000)
@@ -151,8 +156,8 @@ genStateTxOutRef = do
     i <- gets ((\xs -> replicate (32 - length xs) 0 <> xs) . digits 256 . (+ 1) . length)
     pure $ TxOutRef (TxId . toBuiltin $ BS.concat $ map (BS.singleton . fromIntegral) i) 0
 
-genRandomToken :: IO Value
+genRandomToken :: IO P.Value
 genRandomToken = do
     cs <- CurrencySymbol . toBuiltin . BS.concat <$> replicateM 28 (BS.singleton <$> generate arbitrary)
     name <- TokenName . toBuiltin . BS.concat <$> replicateM 32 (BS.singleton <$> generate arbitrary)
-    pure $ Value.singleton cs name 1
+    pure $ P.singleton cs name 1

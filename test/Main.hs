@@ -19,7 +19,6 @@ import           Data.Maybe                    (fromJust)
 import           Data.Text                     (pack)
 import           Ledger                        (TxId (..), TxOutRef (..))
 import           Ledger.Tx.CardanoAPI          (toCardanoAddressInEra)
-import           Ledger.Value                  (CurrencySymbol (..), symbols)
 import           PlutusTx                      (Data (..), ToData (..), builtinDataToData)
 import           PlutusTx.Builtins             (serialiseData)
 import           PlutusTx.Prelude

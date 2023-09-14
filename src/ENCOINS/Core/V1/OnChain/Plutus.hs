@@ -22,10 +22,8 @@
 module ENCOINS.Core.V1.OnChain.Plutus where
 
 import           Data.Maybe                          (fromJust)
-import           Ledger.Ada                          (lovelaceValueOf, fromValue)
 import           Ledger.Tokens                       (token)
 import           Ledger.Typed.Scripts                (IsScriptContext (..), Language (..), Versioned (..))
-import           Ledger.Value                        (AssetClass (..), geq)
 import           Plutus.Script.Utils.V2.Scripts      (scriptCurrencySymbol, validatorHash)
 import           Plutus.V2.Ledger.Api
 import           PlutusTx                            (applyCode, compile, liftCode)
@@ -35,9 +33,11 @@ import           PlutusTx.Prelude
 import           Text.Hex                            (decodeHex)
 
 import           ENCOINS.Core.V1.OnChain.Internal    (EncoinsPolicyParams, EncoinsProtocolParams, EncoinsRedeemerOnChain,
-                                                      checkLedgerOutputValue1, encoinName, inputToBytes,
-                                                      ledgerValidatorCheck, minTxOutValueInLedger, toEncoinsPolicyParams, minAdaTxOutInLedger)
+                                                      checkLedgerOutputValue1, encoinName, inputToBytes, ledgerValidatorCheck,
+                                                      minAdaTxOutInLedger, minTxOutValueInLedger, toEncoinsPolicyParams)
 import           ENCOINS.Orphans                     ()
+import qualified Plutus.Script.Utils.Ada             as P
+import           Plutus.Script.Utils.Value           (AssetClass (..), geq)
 import           PlutusAppsExtra.Constraints.OnChain (filterUtxoProduced, filterUtxoSpent, tokensMinted, utxoProduced,
                                                       utxoReferenced)
 import           PlutusAppsExtra.Utils.Datum         (isInlineUnit)
@@ -62,22 +62,22 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v
       && (cond4 || cond5)
       && cond6
   where
-      val          = lovelaceValueOf (v * 1_000_000)
+      val          = P.lovelaceValueOf (v * 1_000_000)
 
       fees'        = abs fees
-      valFees      = lovelaceValueOf (fees' * 1_000_000)
+      valFees      = P.lovelaceValueOf (fees' * 1_000_000)
 
       deposits     = sum (map snd inputs)
-      valDeposits  = lovelaceValueOf (deposits * 1_000_000)
+      valDeposits  = P.lovelaceValueOf (deposits * 1_000_000)
 
       deposits'    = if cond5 then deposits else 0
-      valDeposits' = lovelaceValueOf (deposits' * minAdaTxOutInLedger)
+      valDeposits' = P.lovelaceValueOf (deposits' * minAdaTxOutInLedger)
 
       valToProtocol = val + valFees + valDeposits'
 
       cond0 = tokensMinted ctx $ fromList inputs
       cond1 = verifyEd25519Signature verifierPKH (hashRedeemer red) sig
-      cond2 = (fromValue valToProtocol >= 0) || utxoProduced info (\o -> txOutAddress o == changeAddr && (txOutValue o + valToProtocol) `geq` zero)
+      cond2 = (P.fromValue valToProtocol >= 0) || utxoProduced info (\o -> txOutAddress o == changeAddr && (txOutValue o + valToProtocol) `geq` zero)
       cond3 = utxoReferenced info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` beacon)
 
       vMint = txInfoMint $ scriptContextTxInfo ctx

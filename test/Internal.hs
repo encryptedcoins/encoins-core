@@ -5,6 +5,7 @@
 
 module Internal where
 
+import           Cardano.Api                (NetworkId)
 import           Control.Monad              (forM, replicateM)
 import           Data.Aeson                 (FromJSON (..), decodeFileStrict, genericParseJSON)
 import           Data.Aeson.Casing          (aesonPrefix, snakeCase)
@@ -16,13 +17,13 @@ import           Data.List                  (sortBy)
 import           Data.Map                   (fromList, toList)
 import           Data.Maybe                 (catMaybes)
 import           ENCOINS.BaseTypes          (MintingPolarity (..), fromGroupElement)
-import           ENCOINS.Bulletproofs       (Secret (Secret), bulletproof, fromSecret, parseBulletproofParams, polarityToInteger, Input (..))
+import           ENCOINS.Bulletproofs       (Input (..), Secret (Secret), bulletproof, fromSecret, parseBulletproofParams,
+                                             polarityToInteger)
 import           ENCOINS.Core.OffChain      (EncoinsMode (..), mkEncoinsRedeemerOnChain, protocolFee)
 import           ENCOINS.Core.OnChain
 import           ENCOINS.Crypto.Field       (toFieldElement)
 import           GHC.Generics               (Generic)
-import           Ledger                     (Address, NetworkId, TokenName)
-import           Plutus.V2.Ledger.Api       (BuiltinByteString, TokenName (..))
+import           Plutus.V2.Ledger.Api       (Address, BuiltinByteString, TokenName (..))
 import           PlutusAppsExtra.Test.Utils (genPubKeyAddress, genTxOutRef)
 import           PlutusTx.Extra.ByteString  (ToBuiltinByteString (..))
 import           PlutusTx.Prelude           (sha2_256)

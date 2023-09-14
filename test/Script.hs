@@ -17,19 +17,20 @@ import           Data.Maybe                 (fromJust)
 import           ENCOINS.Core.OffChain      (EncoinsMode (..))
 import           ENCOINS.Core.OnChain
 import           GHC.IO                     (unsafePerformIO)
-import           Internal                   (TestConfig (..), TestEnv (..), TestSpecification (..), genEncoinsParams, genRequest, genTestEnv,
-                                             getSpecifications)
-import           Ledger.Ada                 (lovelaceValueOf, adaValueOf, fromValue)
-import           Ledger.Value               (adaOnlyValue, isZero, leq)
+import           Internal                   (TestConfig (..), TestEnv (..), TestSpecification (..), genEncoinsParams, genRequest,
+                                             genTestEnv, getSpecifications)
+import qualified Plutus.Script.Utils.Ada    as P
+import           Plutus.Script.Utils.Value  (isZero, leq)
+import qualified Plutus.Script.Utils.Value  as P
 import           Plutus.V2.Ledger.Api       (Address, BuiltinByteString, BuiltinData (..), CurrencySymbol, Data (..), Datum (..),
                                              OutputDatum (..), Redeemer (Redeemer), ScriptContext (..), ScriptPurpose (..),
                                              ToData (..), TokenName (..), TxId (..), TxInInfo (..), TxInfo (..), TxOut (..),
                                              TxOutRef (..), Value (..), singleton)
-import           PlutusAppsExtra.Test.Utils (emptyInfo, testMintingPolicy, testValidator, getProtocolParams)
+import           PlutusAppsExtra.Test.Utils (emptyInfo, getProtocolParams, testMintingPolicy, testValidator)
 import qualified PlutusTx.AssocMap          as PAM
 import           PlutusTx.Prelude           (Group (inv), zero)
 import           Prelude                    hiding (readFile)
-import           Test.Hspec                 (Expectation, context, describe, expectationFailure, hspec, it, Spec, runIO)
+import           Test.Hspec                 (Expectation, Spec, context, describe, expectationFailure, hspec, it, runIO)
 import           Test.QuickCheck            (Property, Testable (property), forAll, ioProperty, whenFail)
 
 scriptSpec :: Spec
@@ -68,12 +69,12 @@ mintingPolicyTest ledgerParams verifierPKH verifierPrvKey TestSpecification{..} 
     let txInfoRef = unsafePerformIO $ newIORef (undefined :: TxInfo)
     whenFail (readIORef txInfoRef >>= print) $ property $ forAll (genRequest tsMaxAdaInSingleToken tsMode) $ \encoinsRequest -> do
         TestEnv{..} <- genTestEnv verifierPKH verifierPrvKey encoinsRequest
-        let encoinsCs = encoinsSymbol teEncoinsParams
+        let encoinsCs    = encoinsSymbol teEncoinsParams
             beaconSymbol = beaconCurrencySymbol teEncoinsParams
-            beacon = singleton beaconSymbol beaconTokenName 1
-            val  = lovelaceValueOf $ teV * 1_000_000
-            fees = lovelaceValueOf $ teFees * 1_000_000
-            valDeposits = lovelaceValueOf $ teDeposits * minAdaTxOutInLedger
+            beacon       = singleton beaconSymbol beaconTokenName 1
+            val          = P.lovelaceValueOf $ teV * 1_000_000
+            fees         = P.lovelaceValueOf $ teFees * 1_000_000
+            valDeposits  = P.lovelaceValueOf $ teDeposits * minAdaTxOutInLedger
 
             tokenNameToVal name = mkEncoinsValue encoinsCs [(name, 1)]
             ledgerInVal  = map ((minTxOutValueInLedger <>) . tokenNameToVal . fst) (filter ((== -1) . snd) teMint)
@@ -94,13 +95,13 @@ mintingPolicyTest ledgerParams verifierPKH verifierPrvKey TestSpecification{..} 
             waletTokensIn = if tsMode == WalletMode then mkEncoinsValue encoinsCs $ map (negate <$>) $ filter ((== (-1)) . snd) teMint else mempty
             valToProtocol = val <> fees <> valDeposits
             walletIns
-                | fromValue valToProtocol > 0 = [mkWalletTxIn teChangeAddr $ valToProtocol <> waletTokensIn]
-                | otherwise                   = [mkWalletTxIn teChangeAddr waletTokensIn]
+                | P.fromValue valToProtocol > 0 = [mkWalletTxIn teChangeAddr $ valToProtocol <> waletTokensIn]
+                | otherwise                     = [mkWalletTxIn teChangeAddr waletTokensIn]
 
             walletTokensOut = if tsMode == WalletMode then mkEncoinsValue encoinsCs $ filter ((== 1) . snd) teMint else mempty
             walletOuts
-                | fromValue valToProtocol > 0 = [mkWalletTxOut teChangeAddr walletTokensOut]
-                | otherwise                   = [mkWalletTxOut teChangeAddr (walletTokensOut <> inv valToProtocol)]
+                | P.fromValue valToProtocol > 0 = [mkWalletTxOut teChangeAddr walletTokensOut]
+                | otherwise                     = [mkWalletTxOut teChangeAddr (walletTokensOut <> inv valToProtocol)]
             txInfo = emptyInfo
                 { txInfoReferenceInputs = [mkLedgerTxIn teLedgerAddr beacon]
                 , txInfoMint            = txMint
@@ -118,7 +119,7 @@ mintingPolicyTest ledgerParams verifierPKH verifierPrvKey TestSpecification{..} 
                 txInfo
                 (Minting encoinsCs))
     where
-        walletSpecifiedOutputs addr = replicate tsWalletUtxosAmt $ mkWalletTxOut addr (lovelaceValueOf $ tsAdaInWalletUtxo * 1_000_000)
+        walletSpecifiedOutputs addr = replicate tsWalletUtxosAmt $ mkWalletTxOut addr (P.lovelaceValueOf $ tsAdaInWalletUtxo * 1_000_000)
         walletSpecifiedInputs addr = map (TxInInfo ref) $ walletSpecifiedOutputs addr
         ledgerSpecifiedOutputs addr cs =
             let v = minTxOutValueInLedger <> singleton cs "0000000000000000000000000000000000000000000000000000000000000000" 1
@@ -144,12 +145,12 @@ balanceLedgerInsOuts :: [Value] -> [Value] -> Value -> ([Value], [Value])
 balanceLedgerInsOuts ins outs vWithDeposits
     | isZero delta = (ins, outs)
     | delta `leq` zero = case (ins, outs) of
-        (is, o:os) -> (is, o <> inv (adaOnlyValue delta)  : os)
-        (i:is, []) -> (minTxOutValueInLedger <> i : is, [minTxOutValueInLedger <> inv (adaOnlyValue delta)])
+        (is, o:os) -> (is, o <> inv (P.adaOnlyValue delta)  : os)
+        (i:is, []) -> (minTxOutValueInLedger <> i : is, [minTxOutValueInLedger <> inv (P.adaOnlyValue delta)])
         ([], []) -> ([], [])
     | otherwise = case (ins, outs) of
-        (i:is, os) -> (i <> adaOnlyValue delta : is, os)
-        ([], o:os) -> ([minTxOutValueInLedger <> adaOnlyValue delta], minTxOutValueInLedger <> o : os)
+        (i:is, os) -> (i <> P.adaOnlyValue delta : is, os)
+        ([], o:os) -> ([minTxOutValueInLedger <> P.adaOnlyValue delta], minTxOutValueInLedger <> o : os)
         ([], []) -> ([], [])
     where
         delta = mconcat outs <> inv (mconcat ins <> vWithDeposits)
