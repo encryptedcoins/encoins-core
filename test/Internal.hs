@@ -89,7 +89,7 @@ genRequest maxAdaInToken mode = flip suchThat isValidRequest $ case mode of
 isValidRequest :: EncoinsRequest -> Bool
 isValidRequest eReq = case eReq of
         WalletRequest _ -> l >= 2 && l <= 5
-        LedgerRequest _ -> l >= 2 && length toMint <= 2 && length toBurn <= 2
+        LedgerRequest _ -> l >= 2 && length toMint <= 2 && length toBurn <= 2 && sum req < 0
     where
         req = extractRequest eReq
         l = length req

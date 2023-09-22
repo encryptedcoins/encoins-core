@@ -186,6 +186,9 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
     when (fees /= 2 * protocolFee mode v)
         $ failTx "encoinsTx" "The fees are not correct" Nothing $> ()
 
+    when (v >= 0 && mode == LedgerMode)
+        $ failTx "encoinsTx" "Nonnegative v in ldger mode" Nothing $> ()
+
     -- Spending utxos with encoins to burn
     let encoinsToBurn = filter (\(_, p) -> p == -1) inputs
     valFromLedger <- encoinsBurnTx par (map (unTokenName . fst) encoinsToBurn) mode
