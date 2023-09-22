@@ -89,19 +89,19 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
                 addrTreasury = fromJust $ bech32ToAddress "addr_test1qzdzazh6ndc9mm4am3fafz6udq93tmdyfrm57pqfd3mgctgu4v44ltv85gw703f2dse7tz8geqtm4n9cy6p3lre785cqutvf6a"
             buildTx pParams Nothing teChangeAddr [encoinsTx (addrRelay, addrTreasury) teEncoinsParams teRedeemer tsMode]
         setTxInputs TestEnv{..} = do
-            specifyWalletUtxos (fromPlutusValue $ P.lovelaceValueOf $ (teV + teFees) * 1_000_000 + teDeposits*minMaxAdaTxOutInLedger) teChangeAddr
+            specifyWalletUtxos (P.lovelaceValueOf $ (teV + teFees) * 1_000_000 + teDeposits*minMaxAdaTxOutInLedger) teChangeAddr
             specifyLedgerUtxos TestEnv{..}
-            addValueTo teLedgerAddr $ fromPlutusValue minMaxTxOutValueInLedger -- For Condition 7
+            addValueTo teLedgerAddr minMaxTxOutValueInLedger -- For Condition 7
             let valFee = protocolFeeValue tsMode teV
                 encoinsCs = encoinsSymbol teEncoinsParams
                 mint = P.Value . PAM.fromList . (:[]) . (encoinsCs,) . PAM.fromList $ teMint
             case tsMode of
                 WalletMode -> do
-                    when (teV < 2) $ addValueTo teLedgerAddr $ fromPlutusValue $ P.lovelaceValueOf (max 0 (-teV) * 1_000_000 + minAdaTxOutInLedger)
-                    addValueTo teChangeAddr (fromPlutusValue $ fst $ P.split mint)
+                    when (teV < 2) $ addValueTo teLedgerAddr $ P.lovelaceValueOf (max 0 (-teV) * 1_000_000 + minAdaTxOutInLedger)
+                    addValueTo teChangeAddr (fst $ P.split mint)
                 LedgerMode -> do
-                    when (teV + teDeposits < 0) $ addValueTo teLedgerAddr $ fromPlutusValue $ P.lovelaceValueOf ((-teV - teDeposits) * 1_000_000 + minAdaTxOutInLedger)
-                    addValueTo teLedgerAddr (fromPlutusValue $ fst (P.split mint) <> P.scale 2 minTxOutValueInLedger)
+                    when (teV + teDeposits < 0) $ addValueTo teLedgerAddr $ P.lovelaceValueOf ((-teV - teDeposits) * 1_000_000 + minAdaTxOutInLedger)
+                    addValueTo teLedgerAddr (fst (P.split mint) <> P.scale 2 minTxOutValueInLedger)
 
         setSetupTokens TestEnv{..} = do
             -- Set stake owner token
@@ -121,10 +121,10 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
 
         maxTxFee = 4
 
-        specifyWalletUtxos :: Value -> Address -> TxTestM ()
+        specifyWalletUtxos :: P.Value -> Address -> TxTestM ()
         specifyWalletUtxos totalV addr = do
             let utxosAmt' = max 1 tsWalletUtxosAmt
-                minAdaInUtxo = fromIntegral $ ceiling $ fromIntegral (P.fromValue $ fromCardanoValue totalV) / fromIntegral utxosAmt'
+                minAdaInUtxo = fromIntegral $ ceiling $ fromIntegral (P.fromValue totalV) / fromIntegral utxosAmt'
                 adaInSingleUtxo = max (P.adaOf $ fromIntegral tsAdaInWalletUtxo) minAdaInUtxo
                 Address (PubKeyCredential pkh) sCred = addr
             -- Create wallet utxos
@@ -137,18 +137,18 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
                 n <- liftIO $ generate $ choose (0, length utxos - 1)
                 modify $ Map.adjust (& decoratedTxOutValue %~ (<> token)) (Map.keys utxos !! n)
 
-addValueTo :: Address -> Value -> TxTestM ()
+addValueTo :: Address -> P.Value -> TxTestM ()
 addValueTo addr v = gets (Map.toList . Map.filter ((== addr) . _decoratedTxOutAddress)) >>= \case
-    (ref, txOut):_ -> modify $ Map.insert ref (txOut & decoratedTxOutValue %~ (<> v))
+    (ref, txOut):_ -> modify $ Map.insert ref (txOut & decoratedTxOutValue %~ (<> fromPlutusValue v))
     _              -> do
         let out = case addr of
-                (Address (PubKeyCredential pkh) mbSc) -> PublicKeyDecoratedTxOut pkh mbSc v Nothing Nothing
-                (Address (ScriptCredential vh)  mbSc) -> ScriptDecoratedTxOut vh mbSc v inlinedUnitInTxOut Nothing Nothing
+                (Address (PubKeyCredential pkh) mbSc) -> PublicKeyDecoratedTxOut pkh mbSc (fromPlutusValue v) Nothing Nothing
+                (Address (ScriptCredential vh)  mbSc) -> ScriptDecoratedTxOut vh mbSc (fromPlutusValue v) inlinedUnitInTxOut Nothing Nothing
         ref <- genStateTxOutRef
         modify (Map.singleton ref out <>)
 
 addLovelaceTo :: Address -> Integer -> TxTestM ()
-addLovelaceTo addr i = addValueTo addr (fromPlutusValue $ P.lovelaceValueOf i)
+addLovelaceTo addr i = addValueTo addr (P.lovelaceValueOf i)
 
 addAdaTo :: Address -> Integer -> TxTestM ()
 addAdaTo addr i = addLovelaceTo addr (i * 1_000_000)
