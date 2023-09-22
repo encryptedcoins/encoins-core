@@ -75,7 +75,7 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
         then res `shouldSatisfy` isRight
         else case res of
             -- A test that should fail from another reason
-            Left (MakeAutoBalancedTxError (Left (Phase1, MaxCollateralInputsExceeded))) -> discardTest
+            Left (MakeAutoBalancedTxError _ (Left (Phase1, MaxCollateralInputsExceeded))) -> discardTest
             -- A test that should have failed, and it did
             Left  _ -> res `shouldSatisfy` isOutOfResoursesError
             -- A test that should have failed, but it didn't
