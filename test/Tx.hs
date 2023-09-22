@@ -26,12 +26,14 @@ import           ENCOINS.Core.OnChain          (beaconAssetClass, encoinsSymbol,
                                                 stakeOwnerToken)
 import           Internal                      (EncoinsRequest (LedgerRequest), TestConfig (..), TestEnv (..),
                                                 TestSpecification (..), genRequest, genTestEnv, getSpecifications)
-import           Ledger                        (Address (..), DecoratedTxOut (..), TxId (..), TxOutRef (..), Value,
+import           Ledger                        (Address (..), DecoratedTxOut (..), TxId (..), TxOutRef (..),
+                                                ValidationError (MaxCollateralInputsExceeded), ValidationPhase (..), Value,
                                                 _decoratedTxOutAddress, decoratedTxOutValue, fromCardanoValue, toCardanoValue)
 import qualified Plutus.Script.Utils.Ada       as P
 import qualified Plutus.Script.Utils.Value     as P
 import           Plutus.V2.Ledger.Api          (Credential (..), CurrencySymbol (..), TokenName (..), toBuiltin)
 import           PlutusAppsExtra.Test.Utils    (TxTestM, buildTx, getProtocolParams, isOutOfResoursesError)
+import           PlutusAppsExtra.Types.Error   (BalanceExternalTxError (..))
 import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
 import           PlutusAppsExtra.Utils.Datum   (inlinedUnitInTxOut)
 import qualified PlutusTx.AssocMap             as PAM
@@ -67,14 +69,17 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
     forAll (genRequest tsMaxAdaInSingleToken tsMode) $ \req -> do
         TestEnv{..} <- genTestEnv verifierPKH verifierPrvKey req
         res <- evalStateT (runTest TestEnv{..}) mempty
+        let discardTest = putStrLn "Discarded." >> discard
         if not tsShouldFail
         -- A test that should't have failed by mem/cpu limit
         then res `shouldSatisfy` isRight
         else case res of
+            -- A test that should fail from another reason
+            Left (MakeAutoBalancedTxError (Left (Phase1, MaxCollateralInputsExceeded))) -> discardTest
             -- A test that should have failed, and it did
             Left  _ -> res `shouldSatisfy` isOutOfResoursesError
             -- A test that should have failed, but it didn't
-            Right _ -> putStrLn "Discarded." >> discard
+            Right _ -> discardTest
     where
         runTest TestEnv{..} = do
             setTxInputs TestEnv{..}
