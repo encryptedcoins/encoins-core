@@ -21,22 +21,23 @@
 
 module ENCOINS.Core.V1.OnChain.Internal where
 
-import           Ledger.Ada                                (lovelaceValueOf)
-import           Ledger.Tokens                             (token)
-import           Ledger.Typed.Scripts                      (IsScriptContext(..), Versioned (..), Language (..))
-import           Ledger.Value                              (AssetClass (..), geq, flattenValue, valueOf)
-import           Plutus.Script.Utils.V2.Scripts            (scriptCurrencySymbol, stakeValidatorHash)
+import           Ledger.Tokens                           (token)
+import           Ledger.Typed.Scripts                    (IsScriptContext (..), Language (..), Versioned (..))
+import           Plutus.Script.Utils.V2.Scripts          (scriptCurrencySymbol, stakeValidatorHash)
 import           Plutus.V2.Ledger.Api
-import           PlutusTx                                  (compile, applyCode, liftCode)
-import           PlutusTx.AssocMap                         (member)
+import           PlutusTx                                (applyCode, compile, liftCode)
+import           PlutusTx.AssocMap                       (member)
 import           PlutusTx.Prelude
 
-import           ENCOINS.Bulletproofs                      (Proof)
-import           ENCOINS.BaseTypes                         (MintingPolarity)
-import           ENCOINS.Orphans                           ()
-import           PlutusAppsExtra.Constraints.OnChain       (utxoSpent)
-import           PlutusAppsExtra.Scripts.OneShotCurrency   (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
-import           PlutusAppsExtra.Utils.Orphans             ()
+import           ENCOINS.BaseTypes                       (MintingPolarity)
+import           ENCOINS.Bulletproofs                    (Proof)
+import           ENCOINS.Orphans                         ()
+import qualified Plutus.Script.Utils.Ada                 as P
+import           Plutus.Script.Utils.Value               (AssetClass (..), geq)
+import qualified Plutus.Script.Utils.Value               as P
+import           PlutusAppsExtra.Constraints.OnChain     (utxoSpent)
+import           PlutusAppsExtra.Scripts.OneShotCurrency (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
+import           PlutusAppsExtra.Utils.Orphans           ()
 
 -- StakeOwner reference, Beacon reference, verifierPKH
 type EncoinsProtocolParams = (TxOutRef, TxOutRef, BuiltinByteString)
@@ -44,14 +45,14 @@ type EncoinsProtocolParams = (TxOutRef, TxOutRef, BuiltinByteString)
 minAdaTxOutInLedger :: Integer
 minAdaTxOutInLedger = 4_000_000
 
-minTxOutValueInLedger :: Value
-minTxOutValueInLedger = lovelaceValueOf minAdaTxOutInLedger
+minTxOutValueInLedger :: P.Value
+minTxOutValueInLedger = P.lovelaceValueOf minAdaTxOutInLedger
 
 minMaxAdaTxOutInLedger :: Integer
 minMaxAdaTxOutInLedger = 1000_000_000
 
 minMaxTxOutValueInLedger :: Value
-minMaxTxOutValueInLedger = lovelaceValueOf minMaxAdaTxOutInLedger
+minMaxTxOutValueInLedger = P.lovelaceValueOf minMaxAdaTxOutInLedger
 
 ---------------------------- Stake Owner Token Minting Policy --------------------------------------
 
@@ -128,12 +129,12 @@ encoinName = TokenName
 {-# INLINABLE checkLedgerOutputValue1 #-}
 checkLedgerOutputValue1 :: [Value] -> Bool
 checkLedgerOutputValue1 [] = True
-checkLedgerOutputValue1 (v:vs) = length (flattenValue v) <= 2 && checkLedgerOutputValue2 vs
+checkLedgerOutputValue1 (v:vs) = length (P.flattenValue v) <= 2 && checkLedgerOutputValue2 vs
 
 {-# INLINABLE checkLedgerOutputValue2 #-}
 checkLedgerOutputValue2 :: [Value] -> Bool
 checkLedgerOutputValue2 [] = True
-checkLedgerOutputValue2 (v:vs) = length (flattenValue v) == 2 && valueOf v adaSymbol adaToken == minAdaTxOutInLedger && checkLedgerOutputValue2 vs
+checkLedgerOutputValue2 (v:vs) = length (P.flattenValue v) == 2 && P.valueOf v adaSymbol adaToken == minAdaTxOutInLedger && checkLedgerOutputValue2 vs
 
 toEncoinsPolicyParams :: EncoinsProtocolParams -> EncoinsPolicyParams
 toEncoinsPolicyParams par@(_, _, verifierPKH) = (beaconToken par, verifierPKH)

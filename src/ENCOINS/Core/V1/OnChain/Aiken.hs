@@ -1,19 +1,18 @@
-{-# LANGUAGE DataKinds                  #-}
-{-# LANGUAGE DerivingStrategies         #-}
-{-# LANGUAGE FlexibleContexts           #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE NoImplicitPrelude          #-}
-{-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE DerivingStrategies    #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NoImplicitPrelude     #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeFamilies          #-}
 
 module ENCOINS.Core.V1.OnChain.Aiken where
 
 import           Data.Maybe                         (fromJust)
 import           Ledger.Tokens                      (token)
 import           Ledger.Typed.Scripts               (Language (..), Versioned (..))
-import           Ledger.Value                       (AssetClass (..))
 import           Plutus.Script.Utils.V2.Scripts     (scriptCurrencySymbol, validatorHash)
 import           Plutus.V2.Ledger.Api
 import           PlutusTx.AssocMap                  (keys, lookup)
@@ -22,8 +21,10 @@ import           Text.Hex                           (decodeHex)
 
 import           Data.Bifunctor                     (Bifunctor (..))
 import           ENCOINS.Core.V1.OnChain.Aiken.UPLC (encoinsPolicyCheck, ledgerValidatorCheck)
-import           ENCOINS.Core.V1.OnChain.Internal   (EncoinsLedgerValidatorParams, EncoinsPolicyParams, EncoinsProtocolParams,
-                                                     EncoinsRedeemerOnChain, encoinName, toEncoinsPolicyParams, TxParams, ProofHash, EncoinsInputOnChain)
+import           ENCOINS.Core.V1.OnChain.Internal   (EncoinsInputOnChain, EncoinsLedgerValidatorParams, EncoinsPolicyParams,
+                                                     EncoinsProtocolParams, EncoinsRedeemerOnChain, ProofHash, TxParams,
+                                                     encoinName, toEncoinsPolicyParams)
+import           Plutus.Script.Utils.Value          (AssetClass (..))
 import           PlutusAppsExtra.Utils.Scripts      (unsafeParameterizedMintingPolicyFromCBOR,
                                                      unsafeParameterizedValidatorFromCBOR)
 import           PlutusTx.Builtins                  (serialiseData)
