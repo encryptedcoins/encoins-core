@@ -187,7 +187,7 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
         $ failTx "encoinsTx" "The fees are not correct" Nothing $> ()
 
     when (v >= 0 && mode == LedgerMode)
-        $ failTx "encoinsTx" "Nonnegative v in ldger mode" Nothing $> ()
+        $ failTx "encoinsTx" "Nonnegative v in ledger mode" Nothing $> ()
 
     -- Spending utxos with encoins to burn
     let encoinsToBurn = filter (\(_, p) -> p == -1) inputs
