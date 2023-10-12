@@ -28,7 +28,7 @@ import           ENCOINS.Core.OnChain
 import           ENCOINS.Core.V1.OffChain.Fees            (protocolFee, protocolFeeValue)
 import           ENCOINS.Core.V1.OffChain.Modes           (EncoinsMode (..))
 import qualified Plutus.Script.Utils.Ada                  as P
-import           Plutus.Script.Utils.Value                (geq, gt)
+import           Plutus.Script.Utils.Value                (geq, gt, leq)
 import qualified Plutus.Script.Utils.Value                as P
 import           PlutusAppsExtra.Constraints.OffChain
 import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
@@ -187,7 +187,7 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
         $ failTx "encoinsTx" "The fees are not correct" Nothing $> ()
 
     when (v >= 0 && mode == LedgerMode)
-        $ failTx "encoinsTx" "Nonnegative v in ldger mode" Nothing $> ()
+        $ failTx "encoinsTx" "Nonnegative v in ledger mode" Nothing $> ()
 
     -- Spending utxos with encoins to burn
     let encoinsToBurn = filter (\(_, p) -> p == -1) inputs
@@ -212,12 +212,15 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
         valToLedger = valFromLedger + bool zero (valMint + valDeposits) (mode == LedgerMode) - valWithdraw
         valFee      = protocolFeeValue mode v
     ledgerModifyTx par valToLedger
-
     -- Paying fees and withdrawing
+    let valToProtocol = valWithdraw - valFee - valFee - valDeposits'
+
+    when (mode == LedgerMode && valToProtocol `leq` zero)
+        $ failTx "encoinsTx" "ValToProtocol is lower than zero" Nothing $> ()
+
     when (v < 0) $ do
         utxoProducedTx addrRelay    valFee (Just inlinedUnit)
         utxoProducedTx addrTreasury valFee (Just inlinedUnit)
         -- NOTE: withdrawing to a Plutus Script address is not possible
-        let valToProtocol = valWithdraw - valFee - valFee - valDeposits'
         when (P.fromValue valToProtocol > 0) $
-            utxoProducedTx changeAddr (valWithdraw - valFee - valFee - valDeposits') Nothing
+            utxoProducedTx changeAddr valToProtocol Nothing
