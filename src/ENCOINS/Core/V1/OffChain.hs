@@ -28,7 +28,7 @@ import           ENCOINS.Core.OnChain
 import           ENCOINS.Core.V1.OffChain.Fees            (protocolFee, protocolFeeValue)
 import           ENCOINS.Core.V1.OffChain.Modes           (EncoinsMode (..))
 import qualified Plutus.Script.Utils.Ada                  as P
-import           Plutus.Script.Utils.Value                (geq, gt, leq)
+import           Plutus.Script.Utils.Value                (geq, gt, lt)
 import qualified Plutus.Script.Utils.Value                as P
 import           PlutusAppsExtra.Constraints.OffChain
 import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
@@ -215,7 +215,7 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
     -- Paying fees and withdrawing
     let valToProtocol = valWithdraw - valFee - valFee - valDeposits'
 
-    when (mode == LedgerMode && valToProtocol `leq` zero)
+    when (mode == LedgerMode && valToProtocol `lt` zero)
         $ failTx "encoinsTx" "ValToProtocol is lower than zero" Nothing $> ()
 
     when (v < 0) $ do
