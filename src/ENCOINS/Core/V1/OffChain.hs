@@ -186,7 +186,7 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
     when (fees /= 2 * protocolFee mode v)
         $ failTx "encoinsTx" "The fees are not correct" Nothing $> ()
 
-    when (v >= 0 && mode == LedgerMode)
+    when (v > 0 && mode == LedgerMode)
         $ failTx "encoinsTx" "Nonnegative v in ledger mode" Nothing $> ()
 
     -- Spending utxos with encoins to burn
@@ -218,7 +218,7 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
     when (mode == LedgerMode && valToProtocol `lt` zero)
         $ failTx "encoinsTx" "ValToProtocol is lower than zero" Nothing $> ()
 
-    when (v < 0) $ do
+    when (v + deposits' < 0) $ do
         utxoProducedTx addrRelay    valFee (Just inlinedUnit)
         utxoProducedTx addrTreasury valFee (Just inlinedUnit)
         -- NOTE: withdrawing to a Plutus Script address is not possible
