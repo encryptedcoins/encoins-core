@@ -42,10 +42,10 @@ import           Tx                            (txSpec)
 
 main :: IO ()
 main = do
+    writeEncoinsSetup
     hspec $ do
         scriptSpec
         txSpec
-    writeEncoinsSetup
 
 -- A helper function to convert Plutus data to JSON
 mkSchema :: Data -> String
