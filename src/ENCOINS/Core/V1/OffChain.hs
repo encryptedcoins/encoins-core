@@ -25,7 +25,7 @@ import           Text.Hex                                 (encodeHex)
 
 import           ENCOINS.Bulletproofs                     (polarityToInteger)
 import           ENCOINS.Core.OnChain
-import           ENCOINS.Core.V1.OffChain.Fees            (protocolFee, protocolFeeValue)
+import           ENCOINS.Core.V1.OffChain.Fees            (protocolFee, protocolFeeValue, treasureFee, treasureFeeValue)
 import           ENCOINS.Core.V1.OffChain.Modes           (EncoinsMode (..))
 import qualified Plutus.Script.Utils.Ada                  as P
 import           Plutus.Script.Utils.Value                (geq, gt, lt)
@@ -183,9 +183,7 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
     when (ledgerAddr /= ledgerValidatorAddress par)
         $ failTx "encoinsTx" "ENCOINS Ledger address in the redeemer is not correct" Nothing $> ()
     -- Checking that protocol fees are correct
-    let relayFee    = protocolFee mode v
-        treasureFee = if relayFee < 4 then 0 else protocolFee mode v `divide` 4
-    when (fees /= relayFee + treasureFee)
+    when (fees /= protocolFee mode v + treasureFee mode v)
         $ failTx "encoinsTx" "The fees are not correct" Nothing $> ()
 
     when (v > 0 && mode == LedgerMode)
@@ -213,7 +211,7 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
     let valWithdraw    = negate $ P.lovelaceValueOf (v * 1_000_000)
         valToLedger    = valFromLedger + bool zero (valMint + valDeposits) (mode == LedgerMode) - valWithdraw
         valRelayFee    = protocolFeeValue mode v
-        valTreasureFee = P.lovelaceValueOf . (* 1_000_000) $ treasureFee
+        valTreasureFee = treasureFeeValue mode v
     ledgerModifyTx par valToLedger
     -- Paying fees and withdrawing
     let valToProtocol = valWithdraw - valRelayFee - valTreasureFee - valDeposits'
