@@ -19,13 +19,13 @@ common lang
       -Wincomplete-record-updates
       -Wnoncanonical-monad-instances
       -Wredundant-constraints
-      
+
       -- See Plutus Tx readme
       -fno-ignore-interface-pragmas
       -fno-omit-interface-pragmas
       -fno-specialise
       -fno-strictness
-      -fobject-code       
+      -fobject-code
       -fplugin-opt PlutusTx.Plugin:defer-errors
 
 library
@@ -79,7 +79,6 @@ library
       plutus-ledger                          -any,
       plutus-ledger-api                      -any,
       plutus-script-utils                    -any,
-      plutus-use-cases                       -any,
       prettyprinter                          -any,
       purescript-bridge                      -any,
       QuickCheck                             -any,
@@ -127,7 +126,6 @@ test-suite encoins-core-test
     plutus-ledger                            -any,
     plutus-ledger-api                        -any,
     plutus-script-utils                      -any,
-    plutus-use-cases                         -any,
     QuickCheck                               -any,
     random                                   -any,
     text                                     -any
