@@ -30,7 +30,7 @@ import           PlutusTx.Prelude           (sha2_256)
 import           Prelude                    hiding (readFile)
 import           System.Directory           (listDirectory)
 import           System.Random              (randomIO)
-import           Test.QuickCheck            (Arbitrary (..), Gen, choose, shuffle, suchThat)
+import           Test.QuickCheck            (Arbitrary (..), Gen, choose, generate, shuffle, suchThat)
 
 data TestConfig = TestConfig
     { tcProtocolParamsFile :: FilePath
@@ -64,7 +64,7 @@ getSpecifications = do
     names <- listDirectory d
     fmap catMaybes . forM names $ \n -> fmap (n,) <$> decodeFileStrict (d <> "/" <> n)
 
-genEncoinsParams :: BuiltinByteString -> IO EncoinsProtocolParams
+genEncoinsParams :: BuiltinByteString -> Gen EncoinsProtocolParams
 genEncoinsParams verifierPKH = (,,verifierPKH) <$> genTxOutRef <*> genTxOutRef
 
 data EncoinsRequest
@@ -126,10 +126,10 @@ data TestEnv = TestEnv
 genTestEnv :: BuiltinByteString -> BuiltinByteString -> EncoinsRequest -> IO TestEnv
 genTestEnv verifierPKH verifierPrvKey encoinsRequest = do
     let req = extractRequest encoinsRequest
-    encoinsParams <- genEncoinsParams verifierPKH
+    encoinsParams <- generate $ genEncoinsParams verifierPKH
     gammas <- replicateM (length req) randomIO
     randomness <- randomIO
-    changeAddress <- genPubKeyAddress
+    changeAddress <- generate $ genPubKeyAddress
     bulletproofSetup <- randomIO
     let mode                = requestMode encoinsRequest
         ledgerAddress       = ledgerValidatorAddress encoinsParams

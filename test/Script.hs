@@ -31,7 +31,7 @@ import qualified PlutusTx.AssocMap          as PAM
 import           PlutusTx.Prelude           (Group (inv), zero)
 import           Prelude                    hiding (readFile)
 import           Test.Hspec                 (Expectation, Spec, context, describe, expectationFailure, hspec, it, runIO)
-import           Test.QuickCheck            (Property, Testable (property), forAll, ioProperty, whenFail)
+import           Test.QuickCheck            (Property, Testable (property), forAll, generate, ioProperty, whenFail)
 
 scriptSpec :: Spec
 scriptSpec = do
@@ -53,7 +53,7 @@ scriptSpec = do
 
 ledgerValidatorTest :: Params -> BuiltinByteString -> Expectation
 ledgerValidatorTest ledgerParams verifierPKH = do
-    encoinsParams <- genEncoinsParams verifierPKH
+    encoinsParams <- generate $ genEncoinsParams verifierPKH
     let encoinsCS = encoinsSymbol encoinsParams
     testValidator
         ledgerParams
