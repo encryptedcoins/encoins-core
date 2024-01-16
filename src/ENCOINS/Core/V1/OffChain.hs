@@ -25,7 +25,7 @@ import           Text.Hex                                 (encodeHex)
 
 import           ENCOINS.Bulletproofs                     (polarityToInteger)
 import           ENCOINS.Core.OnChain
-import           ENCOINS.Core.V1.OffChain.Fees            (protocolFee, protocolFeeValue)
+import           ENCOINS.Core.V1.OffChain.Fees            (protocolFee, protocolFeeValue, treasureFee, treasureFeeValue)
 import           ENCOINS.Core.V1.OffChain.Modes           (EncoinsMode (..))
 import qualified Plutus.Script.Utils.Ada                  as P
 import           Plutus.Script.Utils.Value                (geq, gt, lt)
@@ -183,7 +183,7 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
     when (ledgerAddr /= ledgerValidatorAddress par)
         $ failTx "encoinsTx" "ENCOINS Ledger address in the redeemer is not correct" Nothing $> ()
     -- Checking that protocol fees are correct
-    when (fees /= 2 * protocolFee mode v)
+    when (fees /= protocolFee mode v + treasureFee mode v)
         $ failTx "encoinsTx" "The fees are not correct" Nothing $> ()
 
     when (v > 0 && mode == LedgerMode)
@@ -208,19 +208,20 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
         valDeposits' = P.lovelaceValueOf (deposits' * minAdaTxOutInLedger)
 
     -- Modify ENCOINS Ledger by the given value
-    let valWithdraw = negate $ P.lovelaceValueOf (v * 1_000_000)
-        valToLedger = valFromLedger + bool zero (valMint + valDeposits) (mode == LedgerMode) - valWithdraw
-        valFee      = protocolFeeValue mode v
+    let valWithdraw    = negate $ P.lovelaceValueOf (v * 1_000_000)
+        valToLedger    = valFromLedger + bool zero (valMint + valDeposits) (mode == LedgerMode) - valWithdraw
+        valRelayFee    = protocolFeeValue mode v
+        valTreasureFee = treasureFeeValue mode v
     ledgerModifyTx par valToLedger
     -- Paying fees and withdrawing
-    let valToProtocol = valWithdraw - valFee - valFee - valDeposits'
+    let valToProtocol = valWithdraw - valRelayFee - valTreasureFee - valDeposits'
 
     when (mode == LedgerMode && valToProtocol `lt` zero)
         $ failTx "encoinsTx" "ValToProtocol is lower than zero" Nothing $> ()
 
     when (v + deposits' < 0) $ do
-        utxoProducedTx addrRelay    valFee (Just inlinedUnit)
-        utxoProducedTx addrTreasury valFee (Just inlinedUnit)
+        utxoProducedTx addrRelay valRelayFee (Just inlinedUnit)
+        when (valTreasureFee /= zero) $ utxoProducedTx addrTreasury valTreasureFee (Just inlinedUnit)
         -- NOTE: withdrawing to a Plutus Script address is not possible
         when (P.fromValue valToProtocol > 0) $
             utxoProducedTx changeAddr valToProtocol Nothing
