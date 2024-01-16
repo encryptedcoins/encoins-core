@@ -39,8 +39,8 @@ import           PlutusAppsExtra.Constraints.OnChain     (utxoSpent)
 import           PlutusAppsExtra.Scripts.OneShotCurrency (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
 import           PlutusAppsExtra.Utils.Orphans           ()
 
--- StakeOwner reference, Beacon reference, verifierPKH
-type EncoinsProtocolParams = (TxOutRef, TxOutRef, BuiltinByteString)
+-- StakeOwner reference, Beacon reference, verifierPKH, validator stake key
+type EncoinsProtocolParams = (TxOutRef, TxOutRef, BuiltinByteString, BuiltinByteString)
 
 minAdaTxOutInLedger :: Integer
 minAdaTxOutInLedger = 4_000_000
@@ -62,7 +62,7 @@ stakeOwnerTokenName = TokenName emptyByteString
 
 {-# INLINABLE stakeOwnerMintParams #-}
 stakeOwnerMintParams :: EncoinsProtocolParams -> OneShotCurrencyParams
-stakeOwnerMintParams (ref, _, _) = mkCurrency ref [(stakeOwnerTokenName, 1)]
+stakeOwnerMintParams (ref, _, _, _) = mkCurrency ref [(stakeOwnerTokenName, 1)]
 
 stakeOwnerPolicy :: EncoinsProtocolParams -> MintingPolicy
 stakeOwnerPolicy = oneShotCurrencyPolicy . stakeOwnerMintParams
@@ -87,7 +87,7 @@ beaconTokenName = TokenName emptyByteString
 
 {-# INLINABLE beaconMintParams #-}
 beaconMintParams :: EncoinsProtocolParams -> OneShotCurrencyParams
-beaconMintParams (_, ref, _) = mkCurrency ref [(beaconTokenName, 1)]
+beaconMintParams (_, ref, _, _) = mkCurrency ref [(beaconTokenName, 1)]
 
 beaconPolicy :: EncoinsProtocolParams -> MintingPolicy
 beaconPolicy = oneShotCurrencyPolicy . beaconMintParams
@@ -137,7 +137,7 @@ checkLedgerOutputValue2 [] = True
 checkLedgerOutputValue2 (v:vs) = length (P.flattenValue v) == 2 && P.valueOf v adaSymbol adaToken == minAdaTxOutInLedger && checkLedgerOutputValue2 vs
 
 toEncoinsPolicyParams :: EncoinsProtocolParams -> EncoinsPolicyParams
-toEncoinsPolicyParams par@(_, _, verifierPKH) = (beaconToken par, verifierPKH)
+toEncoinsPolicyParams par@(_, _, verifierPKH, _) = (beaconToken par, verifierPKH)
 
 --------------------------------------- ENCOINS Stake Validator ----------------------------------------
 
