@@ -23,9 +23,9 @@ import           ENCOINS.Core.OffChain      (EncoinsMode (..), calculateFee, mkE
 import           ENCOINS.Core.OnChain
 import           ENCOINS.Crypto.Field       (toFieldElement)
 import           GHC.Generics               (Generic)
-import           Ledger                     (Address (..))
-import           Plutus.V2.Ledger.Api       (BuiltinByteString, TokenName (..))
-import           PlutusAppsExtra.Test.Utils (genPubKeyAddress, genTxOutRef)
+import           Ledger                     (Address (..), PubKeyHash (..))
+import           Plutus.V2.Ledger.Api       (BuiltinByteString, Credential (..), StakingCredential (..), TokenName (..))
+import           PlutusAppsExtra.Test.Utils (genPubKeyAddress, genPubKeyAddressWithStakingHash, genTxOutRef)
 import           PlutusTx.Extra.ByteString  (ToBuiltinByteString (..))
 import           PlutusTx.Prelude           (sha2_256)
 import           Prelude                    hiding (readFile)
@@ -66,7 +66,12 @@ getSpecifications = do
     fmap catMaybes . forM names $ \n -> fmap (n,) <$> decodeFileStrict (d <> "/" <> n)
 
 genEncoinsParams :: BuiltinByteString -> Gen EncoinsProtocolParams
-genEncoinsParams verifierPKH = (,,verifierPKH) <$> genTxOutRef <*> genTxOutRef
+genEncoinsParams verifierPKH = do
+    stakeOwnerRef     <- genTxOutRef
+    beaconRef         <- genTxOutRef
+    validatorStakeKey <- genPubKeyAddressWithStakingHash
+    let Address _ (Just (StakingHash (PubKeyCredential (PubKeyHash validatorStakeKeyBbs)))) = validatorStakeKey
+    pure (stakeOwnerRef, beaconRef, verifierPKH, validatorStakeKeyBbs)
 
 data EncoinsRequest
     = WalletRequest [Integer]

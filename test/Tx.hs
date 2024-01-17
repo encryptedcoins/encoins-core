@@ -55,7 +55,7 @@ txSpec = do
 
         context "no specification" $ do
             it "wallet mode" $ testTx def{tsMode = WalletMode}
-            it "ledger mode" $ withMaxSuccess 1000 $ testTx def{tsMode = LedgerMode}
+            it "ledger mode" $ testTx def{tsMode = LedgerMode}
 
         context "specifications" $ do
             forM_ testSpecsifications $ \(name, tSpec) -> do
