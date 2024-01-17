@@ -39,3 +39,6 @@ protocolFeeValue mode v = P.lovelaceValueOf . (* 1_000_000) $ protocolFee mode v
 
 treasureFeeValue :: EncoinsMode -> Integer -> P.Value
 treasureFeeValue mode v = P.lovelaceValueOf . (* 1_000_000) $ treasureFee mode v
+
+calculateFee :: EncoinsMode -> Integer -> Integer
+calculateFee mode v = protocolFee mode v + treasureFee mode v
