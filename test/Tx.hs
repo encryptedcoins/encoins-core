@@ -20,15 +20,15 @@ import           Data.Digits                   (digits)
 import           Data.Either                   (isRight)
 import qualified Data.Map                      as Map
 import           Data.Maybe                    (fromJust)
-import           ENCOINS.Core.OffChain         (EncoinsMode (..), encoinsTx, protocolFeeValue)
+import           ENCOINS.Core.OffChain         (EncoinsMode (..), encoinsTx)
 import           ENCOINS.Core.OnChain          (beaconAssetClass, encoinsSymbol, ledgerValidatorAddress, minAdaTxOutInLedger,
                                                 minMaxAdaTxOutInLedger, minMaxTxOutValueInLedger, minTxOutValueInLedger,
                                                 stakeOwnerToken)
-import           Internal                      (EncoinsRequest (LedgerRequest), TestConfig (..), TestEnv (..),
-                                                TestSpecification (..), genRequest, genTestEnv, getSpecifications)
+import           Internal                      (TestConfig (..), TestEnv (..), TestSpecification (..), genRequest, genTestEnv,
+                                                getSpecifications)
 import           Ledger                        (Address (..), DecoratedTxOut (..), TxId (..), TxOutRef (..),
                                                 ValidationError (MaxCollateralInputsExceeded), ValidationPhase (..), Value,
-                                                _decoratedTxOutAddress, decoratedTxOutValue, fromCardanoValue, toCardanoValue)
+                                                _decoratedTxOutAddress, decoratedTxOutValue, toCardanoValue)
 import qualified Plutus.Script.Utils.Ada       as P
 import qualified Plutus.Script.Utils.Value     as P
 import           Plutus.V2.Ledger.Api          (Credential (..), CurrencySymbol (..), TokenName (..), toBuiltin)
@@ -38,7 +38,7 @@ import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
 import           PlutusAppsExtra.Utils.Datum   (inlinedUnitInTxOut)
 import qualified PlutusTx.AssocMap             as PAM
 import           PlutusTx.Builtins             (BuiltinByteString)
-import           Test.Hspec                    (Spec, SpecWith, context, describe, hspec, it, runIO, shouldSatisfy)
+import           Test.Hspec                    (Spec, context, describe, it, runIO, shouldSatisfy)
 import           Test.QuickCheck               (Arbitrary (arbitrary), Property, choose, discard, forAll, generate, property,
                                                 withMaxSuccess)
 
@@ -92,8 +92,7 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
             specifyWalletUtxos (P.lovelaceValueOf $ (teV + teFees) * 1_000_000 + teDeposits*minMaxAdaTxOutInLedger) teChangeAddr
             specifyLedgerUtxos TestEnv{..}
             addValueTo teLedgerAddr minMaxTxOutValueInLedger -- For Condition 7
-            let valFee = protocolFeeValue tsMode teV
-                encoinsCs = encoinsSymbol teEncoinsParams
+            let encoinsCs = encoinsSymbol teEncoinsParams
                 mint = P.Value . PAM.fromList . (:[]) . (encoinsCs,) . PAM.fromList $ teMint
             case tsMode of
                 WalletMode -> do

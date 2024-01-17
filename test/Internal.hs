@@ -1,7 +1,8 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE LambdaCase         #-}
+{-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE TupleSections      #-}
 
 module Internal where
 
@@ -17,13 +18,13 @@ import           Data.List                  (sortBy)
 import           Data.Map                   (fromList, toList)
 import           Data.Maybe                 (catMaybes)
 import           ENCOINS.BaseTypes          (MintingPolarity (..), fromGroupElement)
-import           ENCOINS.Bulletproofs       (Input (..), Secret (Secret), bulletproof, fromSecret, parseBulletproofParams,
-                                             polarityToInteger)
-import           ENCOINS.Core.OffChain      (EncoinsMode (..), mkEncoinsRedeemerOnChain, protocolFee)
+import           ENCOINS.Bulletproofs       (Input (..), Secret (Secret), bulletproof, parseBulletproofParams, polarityToInteger)
+import           ENCOINS.Core.OffChain      (EncoinsMode (..), calculateFee, mkEncoinsRedeemerOnChain)
 import           ENCOINS.Core.OnChain
 import           ENCOINS.Crypto.Field       (toFieldElement)
 import           GHC.Generics               (Generic)
-import           Plutus.V2.Ledger.Api       (Address, BuiltinByteString, TokenName (..))
+import           Ledger                     (Address (..))
+import           Plutus.V2.Ledger.Api       (BuiltinByteString, TokenName (..))
 import           PlutusAppsExtra.Test.Utils (genPubKeyAddress, genTxOutRef)
 import           PlutusTx.Extra.ByteString  (ToBuiltinByteString (..))
 import           PlutusTx.Prelude           (sha2_256)
@@ -89,12 +90,17 @@ genRequest maxAdaInToken mode = flip suchThat isValidRequest $ case mode of
 isValidRequest :: EncoinsRequest -> Bool
 isValidRequest eReq = case eReq of
         WalletRequest _ -> l >= 2 && l <= 5
-        LedgerRequest _ -> l >= 2 && length toMint <= 2 && length toBurn <= 2 && sum req < 0
+        LedgerRequest _ -> l >= 2 && length toMint <= 2 && length toBurn <= 2 && sum req < 0 && toProtocol >= 0
     where
         req = extractRequest eReq
         l = length req
         toMint = filter (>= 0) req
         toBurn = filter (<  0) req
+        toProtocol = withdraw - fee - deposits
+        v = sum req
+        withdraw = -v
+        fee = calculateFee (requestMode eReq) v
+        deposits = sum (map (\i -> if i >= 0 then 1 else -1) req) * minAdaTxOutInLedger `div` 1_000_000
 
 instance Show EncoinsRequest where
     show req = let req' = extractRequest req in mconcat [show req', "(", show (sum req'), ")"]
@@ -129,14 +135,14 @@ genTestEnv verifierPKH verifierPrvKey encoinsRequest = do
     encoinsParams <- generate $ genEncoinsParams verifierPKH
     gammas <- replicateM (length req) randomIO
     randomness <- randomIO
-    changeAddress <- generate $ genPubKeyAddress
+    changeAddress <- generate genPubKeyAddress
     bulletproofSetup <- randomIO
     let mode                = requestMode encoinsRequest
         ledgerAddress       = ledgerValidatorAddress encoinsParams
         ps                  = map (\i -> if i < 0 then Burn else Mint) req
         secrets             = zipWith (\i g -> Secret g (toFieldElement i)) req gammas
         v                   = sum req
-        fees                = 2 * protocolFee mode v
+        fees                = calculateFee mode v
         par                 = (ledgerAddress, changeAddress, fees)
         bp                  = parseBulletproofParams $ sha2_256 $ toBytes par
         (_, inputs', proof) = bulletproof bulletproofSetup bp secrets ps randomness
