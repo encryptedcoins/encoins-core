@@ -25,7 +25,7 @@ import           Text.Hex                                 (encodeHex)
 
 import           ENCOINS.Bulletproofs                     (polarityToInteger)
 import           ENCOINS.Core.OnChain
-import           ENCOINS.Core.V1.OffChain.Fees            (calculateFee, protocolFeeValue, treasureFeeValue)
+import           ENCOINS.Core.V1.OffChain.Fees            (calculateFee, protocolFeeValue, treasuryFeeValue)
 import           ENCOINS.Core.V1.OffChain.Modes           (EncoinsMode (..))
 import qualified Plutus.Script.Utils.Ada                  as P
 import           Plutus.Script.Utils.Value                (geq, gt, lt)
@@ -211,17 +211,17 @@ encoinsTx (addrRelay, addrTreasury) par red@((ledgerAddr, changeAddr, fees), (v,
     let valWithdraw    = negate $ P.lovelaceValueOf (v * 1_000_000)
         valToLedger    = valFromLedger + bool zero (valMint + valDeposits) (mode == LedgerMode) - valWithdraw
         valRelayFee    = protocolFeeValue mode v
-        valTreasureFee = treasureFeeValue mode v
+        valTreasuryFee = treasuryFeeValue mode v
     ledgerModifyTx par valToLedger
     -- Paying fees and withdrawing
-    let valToProtocol = valWithdraw - valRelayFee - valTreasureFee - valDeposits'
+    let valToProtocol = valWithdraw - valRelayFee - valTreasuryFee - valDeposits'
 
     when (mode == LedgerMode && valToProtocol `lt` zero)
         $ failTx "encoinsTx" "ValToProtocol is lower than zero" Nothing $> ()
 
     when (v + deposits' < 0) $ do
         utxoProducedTx addrRelay valRelayFee (Just inlinedUnit)
-        when (valTreasureFee /= zero) $ utxoProducedTx addrTreasury valTreasureFee (Just inlinedUnit)
+        when (valTreasuryFee /= zero) $ utxoProducedTx addrTreasury valTreasuryFee (Just inlinedUnit)
         -- NOTE: withdrawing to a Plutus Script address is not possible
         when (P.fromValue valToProtocol > 0) $
             utxoProducedTx changeAddr valToProtocol Nothing
