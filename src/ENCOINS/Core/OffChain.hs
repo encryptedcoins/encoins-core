@@ -2,7 +2,6 @@ module ENCOINS.Core.OffChain (
     -- Modes
     EncoinsMode(..),
     -- Fees
-    calculateFee,
     protocolFee,
     protocolFeeValue,
     treasuryFee,
