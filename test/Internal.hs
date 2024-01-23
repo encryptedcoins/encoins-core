@@ -19,7 +19,7 @@ import           Data.Map                   (fromList, toList)
 import           Data.Maybe                 (catMaybes)
 import           ENCOINS.BaseTypes          (MintingPolarity (..), fromGroupElement)
 import           ENCOINS.Bulletproofs       (Input (..), Secret (Secret), bulletproof, parseBulletproofParams, polarityToInteger)
-import           ENCOINS.Core.OffChain      (EncoinsMode (..), calculateFee, mkEncoinsRedeemerOnChain)
+import           ENCOINS.Core.OffChain      (EncoinsMode (..), mkEncoinsRedeemerOnChain, protocolFee, treasuryFee)
 import           ENCOINS.Core.OnChain
 import           ENCOINS.Crypto.Field       (toFieldElement)
 import           GHC.Generics               (Generic)
@@ -97,6 +97,7 @@ isValidRequest eReq = case eReq of
         WalletRequest _ -> l >= 2 && l <= 5
         LedgerRequest _ -> l >= 2 && length toMint <= 2 && length toBurn <= 2 && sum req < 0 && toProtocol >= 0
     where
+        mode = requestMode eReq
         req = extractRequest eReq
         l = length req
         toMint = filter (>= 0) req
@@ -104,7 +105,7 @@ isValidRequest eReq = case eReq of
         toProtocol = withdraw - fee - deposits
         v = sum req
         withdraw = -v
-        fee = calculateFee (requestMode eReq) v
+        fee = protocolFee mode v + treasuryFee mode v
         deposits = sum (map (\i -> if i >= 0 then 1 else -1) req) * minAdaTxOutInLedger `div` 1_000_000
 
 instance Show EncoinsRequest where
@@ -147,7 +148,7 @@ genTestEnv verifierPKH verifierPrvKey encoinsRequest = do
         ps                  = map (\i -> if i < 0 then Burn else Mint) req
         secrets             = zipWith (\i g -> Secret g (toFieldElement i)) req gammas
         v                   = sum req
-        fees                = calculateFee mode v
+        fees                = protocolFee mode v + treasuryFee mode v
         par                 = (ledgerAddress, changeAddress, fees)
         bp                  = parseBulletproofParams $ sha2_256 $ toBytes par
         (_, inputs', proof) = bulletproof bulletproofSetup bp secrets ps randomness

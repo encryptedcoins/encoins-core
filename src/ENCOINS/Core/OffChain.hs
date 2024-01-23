@@ -5,6 +5,7 @@ module ENCOINS.Core.OffChain (
     calculateFee,
     protocolFee,
     protocolFeeValue,
+    treasuryFee,
     -- Redeemers
     mkEncoinsRedeemerOnChain,
     -- Stake Owner Token Minting Policy
