@@ -1,7 +1,8 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE DeriveGeneric      #-}
+{-# LANGUAGE LambdaCase         #-}
+{-# LANGUAGE NumericUnderscores #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE TupleSections      #-}
 
 module Internal where
 
@@ -17,20 +18,20 @@ import           Data.List                  (sortBy)
 import           Data.Map                   (fromList, toList)
 import           Data.Maybe                 (catMaybes)
 import           ENCOINS.BaseTypes          (MintingPolarity (..), fromGroupElement)
-import           ENCOINS.Bulletproofs       (Input (..), Secret (Secret), bulletproof, fromSecret, parseBulletproofParams,
-                                             polarityToInteger)
-import           ENCOINS.Core.OffChain      (EncoinsMode (..), mkEncoinsRedeemerOnChain, protocolFee)
+import           ENCOINS.Bulletproofs       (Input (..), Secret (Secret), bulletproof, parseBulletproofParams, polarityToInteger)
+import           ENCOINS.Core.OffChain      (EncoinsMode (..), mkEncoinsRedeemerOnChain, protocolFee, treasuryFee)
 import           ENCOINS.Core.OnChain
 import           ENCOINS.Crypto.Field       (toFieldElement)
 import           GHC.Generics               (Generic)
-import           Plutus.V2.Ledger.Api       (Address, BuiltinByteString, TokenName (..))
+import           Ledger                     (Address (..))
+import           Plutus.V2.Ledger.Api       (BuiltinByteString, TokenName (..))
 import           PlutusAppsExtra.Test.Utils (genPubKeyAddress, genTxOutRef)
 import           PlutusTx.Extra.ByteString  (ToBuiltinByteString (..))
 import           PlutusTx.Prelude           (sha2_256)
 import           Prelude                    hiding (readFile)
 import           System.Directory           (listDirectory)
 import           System.Random              (randomIO)
-import           Test.QuickCheck            (Arbitrary (..), Gen, choose, shuffle, suchThat)
+import           Test.QuickCheck            (Arbitrary (..), Gen, choose, generate, shuffle, suchThat)
 
 data TestConfig = TestConfig
     { tcProtocolParamsFile :: FilePath
@@ -64,7 +65,7 @@ getSpecifications = do
     names <- listDirectory d
     fmap catMaybes . forM names $ \n -> fmap (n,) <$> decodeFileStrict (d <> "/" <> n)
 
-genEncoinsParams :: BuiltinByteString -> IO EncoinsProtocolParams
+genEncoinsParams :: BuiltinByteString -> Gen EncoinsProtocolParams
 genEncoinsParams verifierPKH = (,,verifierPKH) <$> genTxOutRef <*> genTxOutRef
 
 data EncoinsRequest
@@ -89,12 +90,18 @@ genRequest maxAdaInToken mode = flip suchThat isValidRequest $ case mode of
 isValidRequest :: EncoinsRequest -> Bool
 isValidRequest eReq = case eReq of
         WalletRequest _ -> l >= 2 && l <= 5
-        LedgerRequest _ -> l >= 2 && length toMint <= 2 && length toBurn <= 2 && sum req < 0
+        LedgerRequest _ -> l >= 2 && length toMint <= 2 && length toBurn <= 2 && sum req < 0 && toProtocol >= 0
     where
+        mode = requestMode eReq
         req = extractRequest eReq
         l = length req
         toMint = filter (>= 0) req
         toBurn = filter (<  0) req
+        toProtocol = withdraw - fee - deposits
+        v = sum req
+        withdraw = -v
+        fee = protocolFee mode v + treasuryFee mode v
+        deposits = sum (map (\i -> if i >= 0 then 1 else -1) req) * minAdaTxOutInLedger `div` 1_000_000
 
 instance Show EncoinsRequest where
     show req = let req' = extractRequest req in mconcat [show req', "(", show (sum req'), ")"]
@@ -126,17 +133,17 @@ data TestEnv = TestEnv
 genTestEnv :: BuiltinByteString -> BuiltinByteString -> EncoinsRequest -> IO TestEnv
 genTestEnv verifierPKH verifierPrvKey encoinsRequest = do
     let req = extractRequest encoinsRequest
-    encoinsParams <- genEncoinsParams verifierPKH
+    encoinsParams <- generate $ genEncoinsParams verifierPKH
     gammas <- replicateM (length req) randomIO
     randomness <- randomIO
-    changeAddress <- genPubKeyAddress
+    changeAddress <- generate genPubKeyAddress
     bulletproofSetup <- randomIO
     let mode                = requestMode encoinsRequest
         ledgerAddress       = ledgerValidatorAddress encoinsParams
         ps                  = map (\i -> if i < 0 then Burn else Mint) req
         secrets             = zipWith (\i g -> Secret g (toFieldElement i)) req gammas
         v                   = sum req
-        fees                = 2 * protocolFee mode v
+        fees                = protocolFee mode v + treasuryFee mode v
         par                 = (ledgerAddress, changeAddress, fees)
         bp                  = parseBulletproofParams $ sha2_256 $ toBytes par
         (_, inputs', proof) = bulletproof bulletproofSetup bp secrets ps randomness

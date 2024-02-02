@@ -31,5 +31,11 @@ protocolFee mode v = case mode of
     WalletMode -> protocolFeeWalletMode v
     LedgerMode -> protocolFeeLedgerMode v
 
+treasuryFee :: EncoinsMode -> Integer -> Integer
+treasuryFee mode v = if protocolFee mode v < 4 then 0 else protocolFee mode v `divide` 4
+
 protocolFeeValue :: EncoinsMode -> Integer -> P.Value
 protocolFeeValue mode v = P.lovelaceValueOf . (* 1_000_000) $ protocolFee mode v
+
+treasuryFeeValue :: EncoinsMode -> Integer -> P.Value
+treasuryFeeValue mode v = P.lovelaceValueOf . (* 1_000_000) $ treasuryFee mode v
