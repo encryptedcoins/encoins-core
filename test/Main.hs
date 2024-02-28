@@ -64,9 +64,10 @@ mkSchema (Constr n dats) = "{ \"constructor\": " ++ show n ++ ", \"fields\": [" 
 writeEncoinsSetup :: IO ()
 writeEncoinsSetup = do
     let encoinsPar     = (
-                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "f86419f8eddc9971864f0fb5d990eeb1eb2edffd3b109a2fa0281f8daee4c248") 0,
-                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "7c011f984f9e96b0de90fddd17fd29db8b0743796e82b33a1b0afa774d8b4d07") 0,
-                toBuiltin $ fromJust $ decodeHex "7F04730FC0F75A7D20BEB8CD152B2B8571591282EC8E5A3FC266C52049A3A5C6"
+                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "ecf398352b88f8393bb9e6b9a802c1fd923bf694712edf0e7a2c52150632357b") 3,
+                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "d746c129e5e7159aba7b5bb96c29ded2e5c0db20e406fb96f094dc77eb57260e") 6,
+                toBuiltin $ fromJust $ decodeHex "4C151FC2942411024A014FEDF52268558A22A1BE8341DE7FC12A9588CB6EA847",
+                toBuiltin $ fromJust $ decodeHex "3c2c08be107291be8d71bbb32da11f3b9761b0991f2a6f6940f4f390"
             )
         encoinsSymb    = encoinsSymbol encoinsPar
         ledgerAddr     = ledgerValidatorAddress encoinsPar
