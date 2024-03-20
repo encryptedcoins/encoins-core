@@ -87,7 +87,7 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
             addAdaTo teChangeAddr maxTxFee
             let addrRelay    = fromJust $ bech32ToAddress "addr_test1qqmg05vsxgf04lke32qkaqt09rt690qzulujazhk39xtkcqnt9a4spnfrrlpp7puw2lcx2zudf49ewyza4q9ha08qhdqheec82"
                 addrTreasury = fromJust $ bech32ToAddress "addr_test1qzdzazh6ndc9mm4am3fafz6udq93tmdyfrm57pqfd3mgctgu4v44ltv85gw703f2dse7tz8geqtm4n9cy6p3lre785cqutvf6a"
-            buildTx pParams Nothing teChangeAddr [encoinsTx (addrRelay, addrTreasury) teEncoinsParams teRedeemer tsMode]
+            buildTx pParams Nothing teChangeAddr [encoinsTx (addrRelay, addrTreasury) teEncoinsParams teRedeemer tsMode] Nothing
         setTxInputs TestEnv{..} = do
             specifyWalletUtxos (P.lovelaceValueOf $ (teV + teFees) * 1_000_000 + teDeposits*minMaxAdaTxOutInLedger) teChangeAddr
             specifyLedgerUtxos TestEnv{..}
