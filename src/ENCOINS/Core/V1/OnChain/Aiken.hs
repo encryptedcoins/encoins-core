@@ -10,14 +10,12 @@
 
 module ENCOINS.Core.V1.OnChain.Aiken where
 
-import           Data.Maybe                         (fromJust)
 import           Ledger.Tokens                      (token)
 import           Ledger.Typed.Scripts               (Language (..), Versioned (..))
 import           Plutus.Script.Utils.V2.Scripts     (scriptCurrencySymbol, validatorHash)
 import           Plutus.V2.Ledger.Api
 import           PlutusTx.AssocMap                  (keys, lookup)
 import           PlutusTx.Prelude
-import           Text.Hex                           (decodeHex)
 
 import           Data.Bifunctor                     (Bifunctor (..))
 import           ENCOINS.Core.V1.OnChain.Aiken.UPLC (encoinsPolicyCheck, ledgerValidatorCheck)
@@ -98,8 +96,10 @@ ledgerValidatorV = flip Versioned PlutusV2 . ledgerValidator
 ledgerValidatorHash :: EncoinsProtocolParams -> ValidatorHash
 ledgerValidatorHash = validatorHash . ledgerValidator
 
+ledgerValidatorStakeKey :: EncoinsProtocolParams -> StakingCredential
+ledgerValidatorStakeKey (_, _, _, stakeKeyBbs) = StakingHash $ PubKeyCredential $ PubKeyHash stakeKeyBbs
+
 ledgerValidatorAddress :: EncoinsProtocolParams -> Address
 ledgerValidatorAddress par = Address
     (ScriptCredential (ledgerValidatorHash par))
-    (Just $ StakingHash $ PubKeyCredential $ PubKeyHash $
-        toBuiltin $ fromJust $ decodeHex "0bd016f8ba5857d2e2026da550e4b724a3e1e8d5598cbfab19ce756c")
+    (Just $ ledgerValidatorStakeKey par)
