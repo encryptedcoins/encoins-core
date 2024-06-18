@@ -4,27 +4,25 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NoImplicitPrelude     #-}
-{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeFamilies          #-}
 
 module ENCOINS.Core.V1.OnChain.Aiken where
 
-import           Ledger.Tokens                      (token)
 import           Ledger.Typed.Scripts               (Language (..), Versioned (..))
-import           Plutus.Script.Utils.V2.Scripts     (scriptCurrencySymbol, validatorHash)
-import           Plutus.V2.Ledger.Api
+import           Plutus.Script.Utils.V2.Scripts     (MintingPolicy, Validator, ValidatorHash, scriptCurrencySymbol, validatorHash)
+import           PlutusLedgerApi.V3
 import           PlutusTx.AssocMap                  (keys, lookup)
 import           PlutusTx.Prelude
 
 import           Data.Bifunctor                     (Bifunctor (..))
 import           ENCOINS.Core.V1.OnChain.Aiken.UPLC (encoinsPolicyCheck, ledgerValidatorCheck)
 import           ENCOINS.Core.V1.OnChain.Internal   (EncoinsInputOnChain, EncoinsLedgerValidatorParams, EncoinsPolicyParams,
-                                                     EncoinsProtocolParams, EncoinsRedeemerOnChain, ProofHash, TxParams,
-                                                     encoinName, toEncoinsPolicyParams)
-import           Plutus.Script.Utils.Value          (AssetClass (..))
-import           PlutusAppsExtra.Utils.Scripts      (unsafeParameterizedMintingPolicyFromCBOR,
-                                                     unsafeParameterizedValidatorFromCBOR)
+                                                     EncoinsProtocolParams, EncoinsRedeemerOnChain, ProofHash, TxParams, encoinName,
+                                                     toEncoinsPolicyParams)
+import           Plutus.Script.Utils.Scripts        (ValidatorHash (getValidatorHash))
+import           Plutus.Script.Utils.Value          (AssetClass (..), assetClassValue)
+import           PlutusAppsExtra.Utils.Scripts      (unsafeParameterizedMintingPolicyFromCBOR, unsafeParameterizedValidatorFromCBOR)
 import           PlutusTx.Builtins                  (serialiseData)
 
 -------------------------------------- ToData instances --------------------------------------
@@ -80,7 +78,7 @@ encoinsAssetClass :: EncoinsProtocolParams -> BuiltinByteString -> AssetClass
 encoinsAssetClass par a = AssetClass (encoinsSymbol par, encoinName a)
 
 encoin :: EncoinsProtocolParams -> BuiltinByteString -> Value
-encoin par = token . encoinsAssetClass par
+encoin par = flip assetClassValue 1 . encoinsAssetClass par
 
 encoinsInValue :: EncoinsProtocolParams -> Value -> [BuiltinByteString]
 encoinsInValue par = map unTokenName . maybe [] keys . lookup (encoinsSymbol par) . getValue
@@ -99,7 +97,8 @@ ledgerValidatorHash = validatorHash . ledgerValidator
 ledgerValidatorStakeKey :: EncoinsProtocolParams -> StakingCredential
 ledgerValidatorStakeKey (_, _, _, stakeKeyBbs) = StakingHash $ PubKeyCredential $ PubKeyHash stakeKeyBbs
 
+
 ledgerValidatorAddress :: EncoinsProtocolParams -> Address
 ledgerValidatorAddress par = Address
-    (ScriptCredential (ledgerValidatorHash par))
+    (ScriptCredential (ScriptHash $ getValidatorHash $ ledgerValidatorHash par))
     (Just $ ledgerValidatorStakeKey par)

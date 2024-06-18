@@ -21,23 +21,28 @@
 
 module ENCOINS.Core.V1.OnChain.Internal where
 
-import           Ledger.Tokens                           (token)
 import           Ledger.Typed.Scripts                    (IsScriptContext (..), Language (..), Versioned (..))
-import           Plutus.Script.Utils.V2.Scripts          (scriptCurrencySymbol, stakeValidatorHash)
-import           Plutus.V2.Ledger.Api
-import           PlutusTx                                (applyCode, compile, liftCode)
+import           Plutus.Script.Utils.V3.Scripts          (MintingPolicy, StakeValidator, StakeValidatorHash, scriptCurrencySymbol,
+                                                          stakeValidatorHash)
+import           PlutusLedgerApi.V2                      (BuiltinByteString, TxOut (txOutValue), TxOutRef, Value)
+import           PlutusTx                                (compile, liftCode, unsafeApplyCode)
 import           PlutusTx.AssocMap                       (member)
-import           PlutusTx.Prelude
+import           PlutusTx.Prelude                        (Bool (..), Eq (..), Integer, Ord (..), appendByteString, consByteString,
+                                                          emptyByteString, length, ($), (&&), (.))
 
 import           ENCOINS.BaseTypes                       (MintingPolarity)
 import           ENCOINS.Bulletproofs                    (Proof)
 import           ENCOINS.Orphans                         ()
+import           Ledger                                  (Address, mkStakeValidatorScript)
 import qualified Plutus.Script.Utils.Ada                 as P
-import           Plutus.Script.Utils.Value               (AssetClass (..), geq)
+import           Plutus.Script.Utils.V3.Contexts         (ScriptContext (..), ScriptPurpose (..), TxInfo (..))
+import           Plutus.Script.Utils.Value               (AssetClass (..), CurrencySymbol, TokenName (..), adaSymbol, adaToken,
+                                                          assetClassValue, geq)
 import qualified Plutus.Script.Utils.Value               as P
 import           PlutusAppsExtra.Constraints.OnChain     (utxoSpent)
 import           PlutusAppsExtra.Scripts.OneShotCurrency (OneShotCurrencyParams, mkCurrency, oneShotCurrencyPolicy)
 import           PlutusAppsExtra.Utils.Orphans           ()
+import           PlutusCore                              (latestVersion)
 
 -- StakeOwner reference, Beacon reference, verifierPKH, validator stake key
 type EncoinsProtocolParams = (TxOutRef, TxOutRef, BuiltinByteString, BuiltinByteString)
@@ -68,16 +73,16 @@ stakeOwnerPolicy :: EncoinsProtocolParams -> MintingPolicy
 stakeOwnerPolicy = oneShotCurrencyPolicy . stakeOwnerMintParams
 
 stakeOwnerPolicyV :: EncoinsProtocolParams -> Versioned MintingPolicy
-stakeOwnerPolicyV = flip Versioned PlutusV2 . stakeOwnerPolicy
+stakeOwnerPolicyV = (`Versioned` PlutusV2) . stakeOwnerPolicy
 
 stakeOwnerCurrencySymbol :: EncoinsProtocolParams -> CurrencySymbol
 stakeOwnerCurrencySymbol = scriptCurrencySymbol . stakeOwnerPolicy
 
 stakeOwnerAssetClass :: EncoinsProtocolParams -> AssetClass
-stakeOwnerAssetClass ref = AssetClass (stakeOwnerCurrencySymbol ref, stakeOwnerTokenName)
+stakeOwnerAssetClass par = AssetClass (stakeOwnerCurrencySymbol par, stakeOwnerTokenName)
 
 stakeOwnerToken :: EncoinsProtocolParams -> Value
-stakeOwnerToken = token . stakeOwnerAssetClass
+stakeOwnerToken par = (`assetClassValue` 1) $ stakeOwnerAssetClass par
 
 -------------------------------------- Beacon Minting Policy ---------------------------------------
 
@@ -93,7 +98,7 @@ beaconPolicy :: EncoinsProtocolParams -> MintingPolicy
 beaconPolicy = oneShotCurrencyPolicy . beaconMintParams
 
 beaconPolicyV :: EncoinsProtocolParams -> Versioned MintingPolicy
-beaconPolicyV = flip Versioned PlutusV2 . beaconPolicy
+beaconPolicyV = (`Versioned` PlutusV2) . beaconPolicy
 
 beaconCurrencySymbol :: EncoinsProtocolParams -> CurrencySymbol
 beaconCurrencySymbol = scriptCurrencySymbol . beaconPolicy
@@ -102,7 +107,7 @@ beaconAssetClass :: EncoinsProtocolParams -> AssetClass
 beaconAssetClass par = AssetClass (beaconCurrencySymbol par, beaconTokenName)
 
 beaconToken :: EncoinsProtocolParams -> Value
-beaconToken = token . beaconAssetClass
+beaconToken = (`assetClassValue` 1) . beaconAssetClass
 
 ----------------------------------- ENCOINS Minting Policy ---------------------------------------
 
@@ -128,7 +133,7 @@ encoinName = TokenName
 
 {-# INLINABLE checkLedgerOutputValue1 #-}
 checkLedgerOutputValue1 :: [Value] -> Bool
-checkLedgerOutputValue1 [] = True
+checkLedgerOutputValue1 []     = True
 checkLedgerOutputValue1 (v:vs) = length (P.flattenValue v) <= 2 && checkLedgerOutputValue2 vs
 
 {-# INLINABLE checkLedgerOutputValue2 #-}
@@ -152,11 +157,11 @@ encoinsStakeValidatorCheck stakeOwner _ ScriptContext{scriptContextTxInfo=info} 
 encoinsStakeValidator :: EncoinsProtocolParams -> StakeValidator
 encoinsStakeValidator par = mkStakeValidatorScript $
     $$(PlutusTx.compile [|| mkUntypedStakeValidator . encoinsStakeValidatorCheck ||])
-        `PlutusTx.applyCode`
-            PlutusTx.liftCode (stakeOwnerToken par)
+        `PlutusTx.unsafeApplyCode`
+                PlutusTx.liftCode latestVersion (stakeOwnerToken par)
 
 encoinsStakeValidatorV :: EncoinsProtocolParams -> Versioned StakeValidator
-encoinsStakeValidatorV = flip Versioned PlutusV2 . encoinsStakeValidator
+encoinsStakeValidatorV = (`Versioned` PlutusV2) . encoinsStakeValidator
 
 encoinsStakeValidatorHash :: EncoinsProtocolParams -> StakeValidatorHash
 encoinsStakeValidatorHash = stakeValidatorHash . encoinsStakeValidator

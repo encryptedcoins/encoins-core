@@ -24,7 +24,7 @@ import           ENCOINS.Core.OnChain
 import           ENCOINS.Crypto.Field       (toFieldElement)
 import           GHC.Generics               (Generic)
 import           Ledger                     (Address (..), PubKeyHash (..))
-import           Plutus.V2.Ledger.Api       (BuiltinByteString, Credential (..), StakingCredential (..), TokenName (..))
+import           PlutusLedgerApi.V2       (BuiltinByteString, Credential (..), StakingCredential (..), TokenName (..))
 import           PlutusAppsExtra.Test.Utils (genPubKeyAddress, genPubKeyAddressWithStakingHash, genTxOutRef)
 import           PlutusTx.Extra.ByteString  (ToBuiltinByteString (..))
 import           PlutusTx.Prelude           (sha2_256)

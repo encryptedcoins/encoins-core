@@ -13,14 +13,14 @@ module ENCOINS.Core.V1.OffChain.ENCS where
 
 import           Data.Functor                         (($>))
 import           Data.Text                            (Text)
-import           Ledger.Address                       (stakingCredential, PaymentPubKeyHash (..))
-import           Plutus.V2.Ledger.Api                 hiding (singleton)
+import           Ledger.Address                       (PaymentPubKeyHash (..), stakingCredential)
+import           PlutusLedgerApi.V3                   hiding (singleton)
 import           PlutusTx.Prelude                     hiding (mapM, (<$>))
 
-import           Ledger.Tx.Constraints.TxConstraints  (TxOutDatum (..))
 import qualified Plutus.Script.Utils.Ada              as P
 import           Plutus.Script.Utils.Value            (singleton)
 import           PlutusAppsExtra.Constraints.OffChain
+import           PlutusAppsExtra.PlutusApps           (TxOutDatum (..))
 import           PlutusAppsExtra.Types.Tx             (TransactionBuilder)
 
 delegateTx :: CurrencySymbol

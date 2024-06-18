@@ -11,15 +11,16 @@
 
 module ENCOINS.Core.V1.OffChain where
 
-import           Control.Monad.State                      (gets, mapM_, when)
+import           Control.Monad                            (mapM_, when)
+import           Control.Monad.State                      (gets)
 import           Data.Bifunctor                           (bimap)
 import           Data.Bool                                (bool)
 import           Data.Functor                             (($>), (<$>))
 import           Data.Text                                (pack)
 import           Ledger                                   (_decoratedTxOutAddress, decoratedTxOutPlutusValue)
-import           Plutus.V2.Ledger.Api                     hiding (singleton)
+import           PlutusLedgerApi.V3                       hiding (singleton)
 import           PlutusTx.Extra.ByteString                (toBytes)
-import           PlutusTx.Prelude                         hiding (mapM, mapM_, (<$>), (<>))
+import           PlutusTx.Prelude                         hiding (mapM, (<$>), (<>))
 import           Prelude                                  (show, (<>))
 import           Text.Hex                                 (encodeHex)
 

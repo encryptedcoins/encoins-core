@@ -21,11 +21,10 @@
 
 module ENCOINS.Core.V1.OnChain.Plutus where
 
-import           Ledger.Tokens                       (token)
 import           Ledger.Typed.Scripts                (IsScriptContext (..), Language (..), Versioned (..))
-import           Plutus.Script.Utils.V2.Scripts      (scriptCurrencySymbol, validatorHash)
-import           Plutus.V2.Ledger.Api
-import           PlutusTx                            (applyCode, compile, liftCode)
+import           Plutus.Script.Utils.V2.Scripts      (MintingPolicy, Validator, ValidatorHash, scriptCurrencySymbol, validatorHash)
+import           PlutusLedgerApi.V3
+import           PlutusTx                            (compile, liftCode, unsafeApplyCode)
 import           PlutusTx.AssocMap                   (keys, lookup)
 import           PlutusTx.Extra.ByteString           (toBytes)
 import           PlutusTx.Prelude
@@ -34,12 +33,13 @@ import           ENCOINS.Core.V1.OnChain.Internal    (EncoinsPolicyParams, Encoi
                                                       checkLedgerOutputValue1, encoinName, inputToBytes, ledgerValidatorCheck,
                                                       minAdaTxOutInLedger, minTxOutValueInLedger, toEncoinsPolicyParams)
 import           ENCOINS.Orphans                     ()
+import           Ledger                              (ValidatorHash (..), mkMintingPolicyScript, mkValidatorScript)
 import qualified Plutus.Script.Utils.Ada             as P
-import           Plutus.Script.Utils.Value           (AssetClass (..), geq)
-import           PlutusAppsExtra.Constraints.OnChain (filterUtxoProduced, filterUtxoSpent, tokensMinted, utxoProduced,
-                                                      utxoReferenced)
+import           Plutus.Script.Utils.Value           (AssetClass (..), assetClassValue, geq)
+import           PlutusAppsExtra.Constraints.OnChain (filterUtxoProduced, filterUtxoSpent, tokensMinted, utxoProduced, utxoReferenced)
 import           PlutusAppsExtra.Utils.Datum         (isInlineUnit)
 import           PlutusAppsExtra.Utils.Orphans       ()
+import           PlutusCore                          (latestVersion)
 
 -- ----------------------------------- ENCOINS Minting Policy ---------------------------------------
 
@@ -73,7 +73,7 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v
 
       valToProtocol = val + valFees + valDeposits'
 
-      cond0 = tokensMinted ctx $ fromList inputs
+      cond0 = tokensMinted ctx $ unsafeFromList inputs
       cond1 = verifyEd25519Signature verifierPKH (hashRedeemer red) sig
       cond2 = (P.fromValue valToProtocol >= 0) || utxoProduced info (\o -> txOutAddress o == changeAddr && (txOutValue o + valToProtocol) `geq` zero)
       cond3 = utxoReferenced info (\o -> txOutAddress o == ledgerAddr && txOutValue o `geq` beacon)
@@ -93,8 +93,8 @@ encoinsPolicyCheck (beacon, verifierPKH) red@((ledgerAddr, changeAddr, fees), (v
 encoinsPolicy :: EncoinsProtocolParams -> MintingPolicy
 encoinsPolicy par = mkMintingPolicyScript $
     $$(PlutusTx.compile [|| mkUntypedMintingPolicy . encoinsPolicyCheck ||])
-        `PlutusTx.applyCode`
-            PlutusTx.liftCode (toEncoinsPolicyParams par)
+        `PlutusTx.unsafeApplyCode`
+            PlutusTx.liftCode latestVersion (toEncoinsPolicyParams par)
 
 encoinsPolicyV :: EncoinsProtocolParams -> Versioned MintingPolicy
 encoinsPolicyV = flip Versioned PlutusV2 . encoinsPolicy
@@ -106,7 +106,7 @@ encoinsAssetClass :: EncoinsProtocolParams -> BuiltinByteString -> AssetClass
 encoinsAssetClass par a = AssetClass (encoinsSymbol par, encoinName a)
 
 encoin :: EncoinsProtocolParams -> BuiltinByteString -> Value
-encoin par = token . encoinsAssetClass par
+encoin par = (`assetClassValue` 1) . encoinsAssetClass par
 
 encoinsInValue :: EncoinsProtocolParams -> Value -> [BuiltinByteString]
 encoinsInValue par = map unTokenName . maybe [] keys . lookup (encoinsSymbol par) . getValue
@@ -116,8 +116,8 @@ encoinsInValue par = map unTokenName . maybe [] keys . lookup (encoinsSymbol par
 ledgerValidator :: EncoinsProtocolParams -> Validator
 ledgerValidator par = mkValidatorScript $
     $$(PlutusTx.compile [|| mkUntypedValidator . ledgerValidatorCheck ||])
-        `PlutusTx.applyCode`
-            PlutusTx.liftCode (encoinsSymbol par)
+        `PlutusTx.unsafeApplyCode`
+            PlutusTx.liftCode latestVersion (encoinsSymbol par)
 
 ledgerValidatorV :: EncoinsProtocolParams -> Versioned Validator
 ledgerValidatorV = flip Versioned PlutusV2 . ledgerValidator
@@ -130,7 +130,7 @@ ledgerValidatorStakeKey (_, _, _, stakeKeyBbs) = StakingHash $ PubKeyCredential 
 
 ledgerValidatorAddress :: EncoinsProtocolParams -> Address
 ledgerValidatorAddress par = Address
-    (ScriptCredential (ledgerValidatorHash par))
+    (ScriptCredential (ScriptHash $ getValidatorHash $ ledgerValidatorHash par))
     (Just $ ledgerValidatorStakeKey par)
 
 -- -- TODO: implement stake validator off-chain logic
@@ -138,5 +138,5 @@ ledgerValidatorAddress par = Address
 -- -- ledgerValidatorAddress par =
 -- --     let StakeValidatorHash vh = encoinsStakeValidatorHash par
 -- --     in Address
--- --     (ScriptCredential (ledgerValidatorHash par))    
+-- --     (ScriptCredential (ledgerValidatorHash par))
 -- --     (Just $ StakingHash $ ScriptCredential $ ValidatorHash vh)
