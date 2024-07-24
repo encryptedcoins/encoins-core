@@ -39,7 +39,7 @@ import           Plutus.Script.Utils.Value           (AssetClass (..), assetClas
 import           PlutusAppsExtra.Constraints.OnChain (filterUtxoProduced, filterUtxoSpent, tokensMinted, utxoProduced, utxoReferenced)
 import           PlutusAppsExtra.Utils.Datum         (isInlineUnit)
 import           PlutusAppsExtra.Utils.Orphans       ()
-import           PlutusCore                          (latestVersion)
+import           PlutusCore.Core                     (plcVersion100)
 
 -- ----------------------------------- ENCOINS Minting Policy ---------------------------------------
 
@@ -94,7 +94,7 @@ encoinsPolicy :: EncoinsProtocolParams -> MintingPolicy
 encoinsPolicy par = mkMintingPolicyScript $
     $$(PlutusTx.compile [|| mkUntypedMintingPolicy . encoinsPolicyCheck ||])
         `PlutusTx.unsafeApplyCode`
-            PlutusTx.liftCode latestVersion (toEncoinsPolicyParams par)
+            PlutusTx.liftCode plcVersion100 (toEncoinsPolicyParams par)
 
 encoinsPolicyV :: EncoinsProtocolParams -> Versioned MintingPolicy
 encoinsPolicyV = flip Versioned PlutusV2 . encoinsPolicy
@@ -117,7 +117,7 @@ ledgerValidator :: EncoinsProtocolParams -> Validator
 ledgerValidator par = mkValidatorScript $
     $$(PlutusTx.compile [|| mkUntypedValidator . ledgerValidatorCheck ||])
         `PlutusTx.unsafeApplyCode`
-            PlutusTx.liftCode latestVersion (encoinsSymbol par)
+            PlutusTx.liftCode plcVersion100 (encoinsSymbol par)
 
 ledgerValidatorV :: EncoinsProtocolParams -> Versioned Validator
 ledgerValidatorV = flip Versioned PlutusV2 . ledgerValidator

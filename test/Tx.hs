@@ -11,8 +11,8 @@ module Tx where
 
 import           Cardano.Node.Emulator         (Params (..))
 import           Control.Lens                  (Field1 (_1), Field2 (_2), (%~), (&), (^.))
-import           Control.Monad                 (forM_, replicateM, replicateM_)
-import           Control.Monad.State           (MonadIO (..), evalStateT, gets, modify, when)
+import           Control.Monad                 (forM_, replicateM, replicateM_, when)
+import           Control.Monad.State           (MonadIO (..), evalStateT, gets, modify)
 import           Data.Aeson                    (eitherDecodeFileStrict)
 import qualified Data.ByteString               as BS
 import           Data.Default                  (Default (def))
@@ -22,20 +22,20 @@ import qualified Data.Map                      as Map
 import           Data.Maybe                    (fromJust)
 import           ENCOINS.Core.OffChain         (EncoinsMode (..), encoinsTx)
 import           ENCOINS.Core.OnChain          (beaconAssetClass, encoinsSymbol, ledgerValidatorAddress, minAdaTxOutInLedger,
-                                                minMaxAdaTxOutInLedger, minMaxTxOutValueInLedger, minTxOutValueInLedger,
-                                                stakeOwnerToken)
+                                                minMaxAdaTxOutInLedger, minMaxTxOutValueInLedger, minTxOutValueInLedger, stakeOwnerToken)
 import           Internal                      (TestConfig (..), TestEnv (..), TestSpecification (..), genRequest, genTestEnv,
                                                 getSpecifications)
-import           Ledger                        (Address (..), DecoratedTxOut (..), TxId (..), TxOutRef (..),
-                                                ValidationError (MaxCollateralInputsExceeded), ValidationPhase (..), Value,
-                                                _decoratedTxOutAddress, decoratedTxOutValue, toCardanoValue)
+import           Ledger                        (Address (..), DecoratedTxOut (..), ScriptHash (..), TxId (..), TxOutRef (..),
+                                                ValidationError (MaxCollateralInputsExceeded), ValidationPhase (..), ValidatorHash (..),
+                                                Value, _decoratedTxOutAddress, decoratedTxOutValue, toCardanoValue)
 import qualified Plutus.Script.Utils.Ada       as P
 import qualified Plutus.Script.Utils.Value     as P
-import           Plutus.V2.Ledger.Api          (Credential (..), CurrencySymbol (..), TokenName (..), toBuiltin)
 import           PlutusAppsExtra.Test.Utils    (TxTestM, buildTx, getProtocolParams, isOutOfResoursesError)
 import           PlutusAppsExtra.Types.Error   (BalanceExternalTxError (..))
 import           PlutusAppsExtra.Utils.Address (bech32ToAddress)
 import           PlutusAppsExtra.Utils.Datum   (inlinedUnitInTxOut)
+import qualified PlutusLedgerApi.V1.Tx         as V1
+import           PlutusLedgerApi.V2            (Credential (..), CurrencySymbol (..), TokenName (..), toBuiltin)
 import qualified PlutusTx.AssocMap             as PAM
 import           PlutusTx.Builtins             (BuiltinByteString)
 import           Test.Hspec                    (Spec, context, describe, it, runIO, shouldSatisfy)
@@ -75,11 +75,11 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
         then res `shouldSatisfy` isRight
         else case res of
             -- A test that should fail from another reason
-            Left (MakeAutoBalancedTxError _ (Left (Phase1, MaxCollateralInputsExceeded))) -> discardTest
+            Left (MakeAutoBalancedTxError (Left (Phase1, MaxCollateralInputsExceeded))) -> discardTest
             -- A test that should have failed, and it did
-            Left  _ -> res `shouldSatisfy` isOutOfResoursesError
+            Left  _                                                                     -> res `shouldSatisfy` isOutOfResoursesError
             -- A test that should have failed, but it didn't
-            Right _ -> discardTest
+            Right _                                                                     -> discardTest
     where
         runTest TestEnv{..} = do
             setTxInputs TestEnv{..}
@@ -93,7 +93,7 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
             specifyLedgerUtxos TestEnv{..}
             addValueTo teLedgerAddr minMaxTxOutValueInLedger -- For Condition 7
             let encoinsCs = encoinsSymbol teEncoinsParams
-                mint = P.Value . PAM.fromList . (:[]) . (encoinsCs,) . PAM.fromList $ teMint
+                mint = P.Value . PAM.unsafeFromList . (:[]) . (encoinsCs,) . PAM.unsafeFromList $ teMint
             case tsMode of
                 WalletMode -> do
                     when (teV < 2) $ addValueTo teLedgerAddr $ P.lovelaceValueOf (max 0 (-teV) * 1_000_000 + minAdaTxOutInLedger)
@@ -104,19 +104,19 @@ encoinsTxTest pParams verifierPKH verifierPrvKey TestSpecification{..} = propert
 
         setSetupTokens TestEnv{..} = do
             -- Set stake owner token
-            let Address (ScriptCredential vh) sCred = ledgerValidatorAddress teEncoinsParams
+            let Address (ScriptCredential (ScriptHash bbs)) sCred = ledgerValidatorAddress teEncoinsParams
             modify $ Map.insert (teEncoinsParams ^. _1) $
-                ScriptDecoratedTxOut vh sCred (fromPlutusValue $ stakeOwnerToken teEncoinsParams) inlinedUnitInTxOut Nothing Nothing
+                ScriptDecoratedTxOut (ValidatorHash bbs) sCred (fromPlutusValue $ stakeOwnerToken teEncoinsParams) inlinedUnitInTxOut Nothing Nothing
             -- Set beacon token
-            let Address (ScriptCredential vh) sCred = ledgerValidatorAddress teEncoinsParams
+            let Address (ScriptCredential (ScriptHash bbs)) sCred = ledgerValidatorAddress teEncoinsParams
             modify $ Map.insert (teEncoinsParams ^. _2) $
-                ScriptDecoratedTxOut vh sCred (fromPlutusValue $ P.assetClassValue (beaconAssetClass teEncoinsParams) 1) inlinedUnitInTxOut Nothing Nothing
+                ScriptDecoratedTxOut (ValidatorHash bbs) sCred (fromPlutusValue $ P.assetClassValue (beaconAssetClass teEncoinsParams) 1) inlinedUnitInTxOut Nothing Nothing
 
         specifyLedgerUtxos TestEnv{..} = do
-            let Address (ScriptCredential vh) sCred = teLedgerAddr
+            let Address (ScriptCredential (ScriptHash bbs)) sCred = teLedgerAddr
                 v = minTxOutValueInLedger <> P.singleton (encoinsSymbol teEncoinsParams) "00000000000000000000000000000000" 1
             replicateM_ tsLedgerUtxosAmt $ genStateTxOutRef >>= modify . flip Map.insert
-                (ScriptDecoratedTxOut vh sCred (fromPlutusValue v) inlinedUnitInTxOut Nothing Nothing)
+                (ScriptDecoratedTxOut (ValidatorHash bbs) sCred (fromPlutusValue v) inlinedUnitInTxOut Nothing Nothing)
 
         maxTxFee = 4
 
@@ -142,7 +142,7 @@ addValueTo addr v = gets (Map.toList . Map.filter ((== addr) . _decoratedTxOutAd
     _              -> do
         let out = case addr of
                 (Address (PubKeyCredential pkh) mbSc) -> PublicKeyDecoratedTxOut pkh mbSc (fromPlutusValue v) Nothing Nothing
-                (Address (ScriptCredential vh)  mbSc) -> ScriptDecoratedTxOut vh mbSc (fromPlutusValue v) inlinedUnitInTxOut Nothing Nothing
+                (Address (ScriptCredential (ScriptHash bbs))  mbSc) -> ScriptDecoratedTxOut (ValidatorHash bbs) mbSc (fromPlutusValue v) inlinedUnitInTxOut Nothing Nothing
         ref <- genStateTxOutRef
         modify (Map.singleton ref out <>)
 
@@ -155,7 +155,7 @@ addAdaTo addr i = addLovelaceTo addr (i * 1_000_000)
 genStateTxOutRef :: TxTestM TxOutRef
 genStateTxOutRef = do
     i <- gets ((\xs -> replicate (32 - length xs) 0 <> xs) . digits 256 . (+ 1) . length)
-    pure $ TxOutRef (TxId . toBuiltin $ BS.concat $ map (BS.singleton . fromIntegral) i) 0
+    pure $ TxOutRef (V1.TxId . toBuiltin $ BS.concat $ map (BS.singleton . fromIntegral) i) 0
 
 genRandomToken :: IO Value
 genRandomToken = do

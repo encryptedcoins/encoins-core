@@ -1,40 +1,42 @@
+{-# LANGUAGE DataKinds          #-}
 {-# LANGUAGE NumericUnderscores #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE TupleSections      #-}
+{-# LANGUAGE TypeApplications   #-}
 
 module Script where
 
-import           Cardano.Api                 (NetworkId (..), NetworkMagic (..))
-import           Cardano.Node.Emulator       (Params (..))
-import           Control.Monad               (forM_, when)
-import           Data.Aeson                  (decode, eitherDecodeFileStrict)
-import           Data.ByteString.Lazy        (readFile)
-import           Data.Default                (def)
-import           Data.Either                 (isLeft)
-import           Data.IORef                  (newIORef, readIORef, writeIORef)
-import           Data.Maybe                  (fromJust)
-import           ENCOINS.Core.OffChain       (EncoinsMode (..))
-import           ENCOINS.Core.OnChain        (Aiken (Aiken), beaconCurrencySymbol, beaconTokenName, encoinsPolicy, encoinsSymbol,
-                                              ledgerValidator, minAdaTxOutInLedger, minMaxTxOutValueInLedger, minTxOutValueInLedger)
-import           GHC.IO                      (unsafePerformIO)
-import           Internal                    (TestConfig (..), TestEnv (..), TestSpecification (..), genEncoinsParams, genRequest,
-                                              genTestEnv, getSpecifications)
-import           Ledger                      (ScriptContext (..))
-import qualified Plutus.Script.Utils.Ada     as P
-import           Plutus.Script.Utils.Value   (isZero, leq)
-import qualified Plutus.Script.Utils.Value   as P
-import           PlutusAppsExtra.Test.Utils  (emptyTxInfo, getProtocolParams, testMintingPolicy, testValidator)
-import           PlutusLedgerApi.V1.Contexts (TxInInfo (..), TxInfo (..))
-import           PlutusLedgerApi.V2          (Address, BuiltinByteString, BuiltinData (..), CurrencySymbol, Data (..), Datum (..),
-                                              OutputDatum (..), Redeemer (Redeemer), ScriptPurpose (..), ToData (..), TokenName (..),
-                                              TxId (..), TxOut (..), TxOutRef (..), Value (..), singleton, txInfoRedeemers,
-                                              txInfoReferenceInputs)
-import qualified PlutusTx.AssocMap           as PAM
-import           PlutusTx.Prelude            (Group (inv), zero)
-import           Prelude                     hiding (readFile)
-import           Test.Hspec                  (Expectation, Spec, context, describe, expectationFailure, hspec, it, runIO)
-import           Test.QuickCheck             (Property, Testable (property), forAll, generate, ioProperty, whenFail)
+import           Cardano.Api                (NetworkId (..), NetworkMagic (..))
+import           Cardano.Ledger.Babbage     (Babbage)
+import           Cardano.Node.Emulator      (Params (..))
+import           Control.Monad              (forM_, when)
+import           Data.Aeson                 (decode, eitherDecodeFileStrict)
+import           Data.ByteString.Lazy       (readFile)
+import           Data.Default               (def)
+import           Data.Either                (isLeft)
+import           Data.IORef                 (newIORef, readIORef, writeIORef)
+import           Data.Maybe                 (fromJust)
+import           ENCOINS.Core.OffChain      (EncoinsMode (..))
+import           ENCOINS.Core.OnChain       (Aiken (Aiken), beaconCurrencySymbol, beaconTokenName, encoinsPolicy, encoinsSymbol,
+                                             ledgerValidator, minAdaTxOutInLedger, minMaxTxOutValueInLedger, minTxOutValueInLedger)
+import           GHC.IO                     (unsafePerformIO)
+import           Internal                   (TestConfig (..), TestEnv (..), TestSpecification (..), genEncoinsParams, genRequest,
+                                             genTestEnv, getSpecifications)
+import           Ledger                     (Language (..), ScriptContext (..))
+import qualified Plutus.Script.Utils.Ada    as P
+import           Plutus.Script.Utils.Value  (isZero, leq)
+import qualified Plutus.Script.Utils.Value  as P
+import           PlutusAppsExtra.Test.Utils (emptyTxInfoPV2, getProtocolParams, testMintingPolicy, testValidator)
+import           PlutusLedgerApi.V2         (Address, BuiltinByteString, BuiltinData (..), CurrencySymbol, Data (..), Datum (..),
+                                             OutputDatum (..), Redeemer (Redeemer), ScriptPurpose (..), ToData (..), TokenName (..),
+                                             TxId (..), TxOut (..), TxOutRef (..), Value (..), singleton)
+import qualified PlutusLedgerApi.V2         as V2
+import qualified PlutusTx.AssocMap          as PAM
+import           PlutusTx.Prelude           (Group (inv), zero)
+import           Prelude                    hiding (readFile)
+import           Test.Hspec                 (Expectation, Spec, context, describe, expectationFailure, hspec, it, runIO)
+import           Test.QuickCheck            (Property, Testable (property), forAll, generate, ioProperty, whenFail)
 
 scriptSpec :: Spec
 scriptSpec = do
@@ -58,18 +60,18 @@ ledgerValidatorTest :: Params -> BuiltinByteString -> Expectation
 ledgerValidatorTest ledgerParams verifierPKH = do
     encoinsParams <- generate $ genEncoinsParams verifierPKH
     let encoinsCS = encoinsSymbol encoinsParams
+        txInfo = emptyTxInfoPV2 {V2.txInfoRedeemers = PAM.singleton (V2.Minting encoinsCS) (Redeemer (BuiltinData $ Constr 0 []))}
     testValidator
-        ledgerParams
+        @PlutusV2
+        @Babbage
         (ledgerValidator encoinsParams)
         ()
         ()
-        (ScriptContext
-            emptyTxInfo {txInfoRedeemers = PAM.singleton (Minting encoinsCS) (Redeemer (BuiltinData $ Constr 0 []))}
-            (Minting encoinsCS))
+        (V2.ScriptContext txInfo (V2.Minting encoinsCS))
 
 mintingPolicyTest :: Params -> BuiltinByteString -> BuiltinByteString -> TestSpecification -> Property
 mintingPolicyTest ledgerParams verifierPKH verifierPrvKey TestSpecification{..} = do
-    let txInfoRef = unsafePerformIO $ newIORef (undefined :: TxInfo)
+    let txInfoRef = unsafePerformIO $ newIORef (undefined :: V2.TxInfo)
     whenFail (readIORef txInfoRef >>= print) $ property $ forAll (genRequest tsMaxAdaInSingleToken tsMode) $ \encoinsRequest -> do
         TestEnv{..} <- genTestEnv verifierPKH verifierPrvKey encoinsRequest
         let encoinsCs    = encoinsSymbol teEncoinsParams
@@ -105,41 +107,42 @@ mintingPolicyTest ledgerParams verifierPKH verifierPrvKey TestSpecification{..} 
             walletOuts
                 | P.fromValue valToProtocol > 0 = [mkWalletTxOut teChangeAddr walletTokensOut]
                 | otherwise                     = [mkWalletTxOut teChangeAddr (walletTokensOut <> inv valToProtocol)]
-            txInfo = emptyTxInfo
-                { txInfoReferenceInputs = [mkLedgerTxIn teLedgerAddr beacon]
-                , txInfoMint            = txMint
-                , txInfoInputs          = mconcat
+            txInfo = emptyTxInfoPV2
+                { V2.txInfoReferenceInputs = [mkLedgerTxIn teLedgerAddr beacon]
+                , V2.txInfoMint            = txMint
+                , V2.txInfoInputs          = mconcat
                     [ledgerIns, walletIns, walletSpecifiedInputs  teChangeAddr, ledgerSpecifiedInputs teLedgerAddr encoinsCs]
-                , txInfoOutputs         = mconcat
+                , V2.txInfoOutputs         = mconcat
                     [ledgerOuts, walletOuts, walletSpecifiedOutputs teChangeAddr, ledgerSpecifiedOutputs teLedgerAddr encoinsCs]
                 }
         writeIORef txInfoRef txInfo
         testMintingPolicy
-            ledgerParams
+            @PlutusV2
+            @Babbage
             (encoinsPolicy teEncoinsParams)
             (Aiken teRedeemer)
-            (ScriptContext
+            (V2.ScriptContext
                 txInfo
-                (Minting encoinsCs))
+                (V2.Minting encoinsCs))
     where
         walletSpecifiedOutputs addr = replicate tsWalletUtxosAmt $ mkWalletTxOut addr (P.lovelaceValueOf $ tsAdaInWalletUtxo * 1_000_000)
-        walletSpecifiedInputs addr = map (TxInInfo ref) $ walletSpecifiedOutputs addr
+        walletSpecifiedInputs addr = map (V2.TxInInfo ref) $ walletSpecifiedOutputs addr
         ledgerSpecifiedOutputs addr cs =
             let v = minTxOutValueInLedger <> singleton cs "0000000000000000000000000000000000000000000000000000000000000000" 1
             in replicate tsLedgerUtxosAmt $ mkLedgerTxOut addr v
-        ledgerSpecifiedInputs addr cs = map (TxInInfo ref) $ ledgerSpecifiedOutputs addr cs
+        ledgerSpecifiedInputs addr cs = map (V2.TxInInfo ref) $ ledgerSpecifiedOutputs addr cs
 
 mkLedgerTxOut :: Address -> Value -> TxOut
 mkLedgerTxOut addr v = TxOut addr v (OutputDatum (Datum $ toBuiltinData ())) Nothing
 
-mkLedgerTxIn :: Address -> Value -> TxInInfo
-mkLedgerTxIn addr v = TxInInfo ref $ mkLedgerTxOut addr v
+mkLedgerTxIn :: Address -> Value -> V2.TxInInfo
+mkLedgerTxIn addr v = V2.TxInInfo ref $ mkLedgerTxOut addr v
 
 mkWalletTxOut :: Address -> Value -> TxOut
 mkWalletTxOut addr v = TxOut addr v NoOutputDatum Nothing
 
-mkWalletTxIn :: Address -> Value -> TxInInfo
-mkWalletTxIn addr v = TxInInfo ref $ mkWalletTxOut addr v
+mkWalletTxIn :: Address -> Value -> V2.TxInInfo
+mkWalletTxIn addr v = V2.TxInInfo ref $ mkWalletTxOut addr v
 
 mkEncoinsValue :: CurrencySymbol -> [(TokenName, Integer)] -> Value
 mkEncoinsValue encoinsCs = Value . PAM.unsafeFromList . (:[]) . (encoinsCs,) . PAM.unsafeFromList
@@ -158,5 +161,5 @@ balanceLedgerInsOuts ins outs vWithDeposits
     where
         delta = mconcat outs <> inv (mconcat ins <> vWithDeposits)
 
-ref :: TxOutRef
-ref = TxOutRef (TxId "") 0
+ref :: V2.TxOutRef
+ref = V2.TxOutRef (V2.TxId "") 0

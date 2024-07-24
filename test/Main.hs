@@ -21,7 +21,7 @@ import           Ledger                        (TxId (..), TxOutRef (..))
 import           Ledger.Tx.CardanoAPI          (toCardanoAddressInEra)
 import           PlutusTx                      (Data (..), ToData (..), builtinDataToData)
 import           PlutusTx.Builtins             (serialiseData)
-import           PlutusTx.Prelude
+import           PlutusTx.Prelude              hiding (unzip)
 import           Prelude                       (IO, Show (..), String, print, unzip, writeFile)
 import qualified Prelude                       as Haskell
 import           System.Random                 (randomIO)
@@ -29,12 +29,13 @@ import           Test.QuickCheck               (quickCheck)
 import           Text.Hex                      (decodeHex, encodeHex)
 
 import           ENCOINS.BaseTypes             (MintingPolarity (..), fromGroupElement, groupExp, groupGenerator)
-import           ENCOINS.Bulletproofs          (BulletproofSetup (..), Input (..), Proof (..), Randomness (..), Secret (..),
-                                                bulletproof, parseBulletproofParams)
-import           ENCOINS.Core.OnChain          (beaconCurrencySymbol, encoin, encoinsPolicy, encoinsSymbol,
-                                                ledgerValidatorAddress, toEncoinsPolicyParams)
+import           ENCOINS.Bulletproofs          (BulletproofSetup (..), Input (..), Proof (..), Randomness (..), Secret (..), bulletproof,
+                                                parseBulletproofParams)
+import           ENCOINS.Core.OnChain          (beaconCurrencySymbol, encoin, encoinsPolicy, encoinsSymbol, ledgerValidatorAddress,
+                                                toEncoinsPolicyParams)
 import           ENCOINS.Crypto.Field          (Field (..))
 import           PlutusAppsExtra.Utils.Address (addressToBech32, bech32ToAddress)
+import qualified PlutusLedgerApi.V1            as V1
 import           PlutusTx.Extra.ByteString     (toBytes)
 import           Script                        (scriptSpec)
 import           Test.Hspec                    (hspec)
@@ -64,8 +65,8 @@ mkSchema (Constr n dats) = "{ \"constructor\": " ++ show n ++ ", \"fields\": [" 
 writeEncoinsSetup :: IO ()
 writeEncoinsSetup = do
     let encoinsPar     = (
-                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "ecf398352b88f8393bb9e6b9a802c1fd923bf694712edf0e7a2c52150632357b") 3,
-                TxOutRef (TxId $ toBuiltin $ fromJust $ decodeHex "d746c129e5e7159aba7b5bb96c29ded2e5c0db20e406fb96f094dc77eb57260e") 6,
+                TxOutRef (V1.TxId $ toBuiltin $ fromJust $ decodeHex "ecf398352b88f8393bb9e6b9a802c1fd923bf694712edf0e7a2c52150632357b") 3,
+                TxOutRef (V1.TxId $ toBuiltin $ fromJust $ decodeHex "d746c129e5e7159aba7b5bb96c29ded2e5c0db20e406fb96f094dc77eb57260e") 6,
                 toBuiltin $ fromJust $ decodeHex "4C151FC2942411024A014FEDF52268558A22A1BE8341DE7FC12A9588CB6EA847",
                 toBuiltin $ fromJust $ decodeHex "3c2c08be107291be8d71bbb32da11f3b9761b0991f2a6f6940f4f390"
             )

@@ -5,6 +5,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NoImplicitPrelude     #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
 
 module ENCOINS.Core.V1.OnChain.Aiken where
@@ -15,6 +16,8 @@ import           PlutusLedgerApi.V3
 import           PlutusTx.AssocMap                  (keys, lookup)
 import           PlutusTx.Prelude
 
+import           Cardano.Ledger.Babbage             (Babbage)
+import           Cardano.Ledger.Conway              (Conway)
 import           Data.Bifunctor                     (Bifunctor (..))
 import           ENCOINS.Core.V1.OnChain.Aiken.UPLC (encoinsPolicyCheck, ledgerValidatorCheck)
 import           ENCOINS.Core.V1.OnChain.Internal   (EncoinsInputOnChain, EncoinsLedgerValidatorParams, EncoinsPolicyParams,
@@ -66,10 +69,10 @@ hashRedeemer :: EncoinsRedeemerOnChain -> BuiltinByteString
 hashRedeemer (a, b, c, _) = sha2_256 . serialiseData . toBuiltinData $ Aiken (a, b, c)
 
 encoinsPolicy :: EncoinsProtocolParams -> MintingPolicy
-encoinsPolicy = unsafeParameterizedMintingPolicyFromCBOR encoinsPolicyCheck . Aiken . toEncoinsPolicyParams
+encoinsPolicy = unsafeParameterizedMintingPolicyFromCBOR @PlutusV2 @Babbage encoinsPolicyCheck . Aiken . toEncoinsPolicyParams
 
 encoinsPolicyV :: EncoinsProtocolParams -> Versioned MintingPolicy
-encoinsPolicyV = flip Versioned PlutusV2 . encoinsPolicy
+encoinsPolicyV = flip Versioned PlutusV1 . encoinsPolicy
 
 encoinsSymbol :: EncoinsProtocolParams -> CurrencySymbol
 encoinsSymbol = scriptCurrencySymbol . encoinsPolicy
@@ -86,7 +89,7 @@ encoinsInValue par = map unTokenName . maybe [] keys . lookup (encoinsSymbol par
 ------------------------------------- ENCOINS Ledger Validator --------------------------------------
 
 ledgerValidator :: EncoinsProtocolParams -> Validator
-ledgerValidator = unsafeParameterizedValidatorFromCBOR ledgerValidatorCheck . Aiken . encoinsSymbol
+ledgerValidator = unsafeParameterizedValidatorFromCBOR @PlutusV2 @Conway ledgerValidatorCheck . Aiken . encoinsSymbol
 
 ledgerValidatorV :: EncoinsProtocolParams -> Versioned Validator
 ledgerValidatorV = flip Versioned PlutusV2 . ledgerValidator

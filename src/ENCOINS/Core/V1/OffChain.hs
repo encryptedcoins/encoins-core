@@ -11,34 +11,34 @@
 
 module ENCOINS.Core.V1.OffChain where
 
-import           Control.Monad                            (mapM_, when)
-import           Control.Monad.State                      (gets)
-import           Data.Bifunctor                           (bimap)
-import           Data.Bool                                (bool)
-import           Data.Functor                             (($>), (<$>))
-import           Data.Text                                (pack)
-import           Ledger                                   (_decoratedTxOutAddress, decoratedTxOutPlutusValue)
-import           PlutusLedgerApi.V3                       hiding (singleton)
-import           PlutusTx.Extra.ByteString                (toBytes)
-import           PlutusTx.Prelude                         hiding (mapM, (<$>), (<>))
-import           Prelude                                  (show, (<>))
-import           Text.Hex                                 (encodeHex)
+import           Control.Monad                                   (mapM_, when)
+import           Control.Monad.State                             (gets)
+import           Data.Bifunctor                                  (bimap)
+import           Data.Bool                                       (bool)
+import           Data.Functor                                    (($>), (<$>))
+import           Data.Text                                       (pack)
+import           Ledger                                          (_decoratedTxOutAddress, decoratedTxOutPlutusValue)
+import           PlutusLedgerApi.V3                              hiding (singleton)
+import           PlutusTx.Extra.ByteString                       (toBytes)
+import           PlutusTx.Prelude                                hiding (mapM, (<$>), (<>))
+import           Prelude                                         (show, (<>))
+import           Text.Hex                                        (encodeHex)
 
-import           ENCOINS.Bulletproofs                     (polarityToInteger)
+import           ENCOINS.Bulletproofs                            (polarityToInteger)
 import           ENCOINS.Core.OnChain
-import           ENCOINS.Core.V1.OffChain.Fees            (protocolFee, treasuryFee, treasuryFeeValue)
-import           ENCOINS.Core.V1.OffChain.Modes           (EncoinsMode (..))
-import qualified Plutus.Script.Utils.Ada                  as P
-import           Plutus.Script.Utils.Value                (geq, gt, lt)
-import qualified Plutus.Script.Utils.Value                as P
+import           ENCOINS.Core.V1.OffChain.Fees                   (protocolFee, treasuryFee, treasuryFeeValue)
+import           ENCOINS.Core.V1.OffChain.Modes                  (EncoinsMode (..))
+import qualified Plutus.Script.Utils.Ada                         as P
+import           Plutus.Script.Utils.Value                       (geq, gt, lt)
+import qualified Plutus.Script.Utils.Value                       as P
 import           PlutusAppsExtra.Constraints.OffChain
-import           PlutusAppsExtra.Scripts.CommonValidators (alwaysFalseValidatorAddress)
-import           PlutusAppsExtra.Scripts.OneShotCurrency  (oneShotCurrencyMintTx)
-import           PlutusAppsExtra.Types.Tx                 (TransactionBuilder, TxConstructor (..))
-import           PlutusAppsExtra.Utils.Crypto             (sign)
-import           PlutusAppsExtra.Utils.Datum              (hashedUnit, inlinedUnit)
-import           PlutusAppsExtra.Utils.Value              (currencyAndAdaOnlyValue, currencyOnlyValue, isCurrencyAndAdaOnlyValue,
-                                                           unflattenValue)
+import           PlutusAppsExtra.Scripts.Legacy.CommonValidators (alwaysFalseValidatorAddress)
+import           PlutusAppsExtra.Scripts.Legacy.OneShotCurrency  (legacyOneShotCurrencyMintTx)
+import           PlutusAppsExtra.Types.Tx                        (TransactionBuilder, TxConstructor (..))
+import           PlutusAppsExtra.Utils.Crypto                    (sign)
+import           PlutusAppsExtra.Utils.Datum                     (hashedUnit, inlinedUnit)
+import           PlutusAppsExtra.Utils.Value                     (currencyAndAdaOnlyValue, currencyOnlyValue, isCurrencyAndAdaOnlyValue,
+                                                                  unflattenValue)
 
 mkEncoinsRedeemerOnChain :: BuiltinByteString -> EncoinsRedeemer -> EncoinsRedeemerOnChain
 mkEncoinsRedeemerOnChain prvKey (par, input, proof, _) =
@@ -50,7 +50,7 @@ mkEncoinsRedeemerOnChain prvKey (par, input, proof, _) =
 ---------------------------- Stake Owner Token Minting Policy --------------------------------------
 
 stakeOwnerMintTx :: EncoinsProtocolParams -> TransactionBuilder ()
-stakeOwnerMintTx par = oneShotCurrencyMintTx (stakeOwnerMintParams par) $> ()
+stakeOwnerMintTx par = legacyOneShotCurrencyMintTx (stakeOwnerMintParams par) $> ()
 
 stakeOwnerTx :: EncoinsProtocolParams -> TransactionBuilder ()
 stakeOwnerTx = stakeOwnerMintTx
@@ -58,7 +58,7 @@ stakeOwnerTx = stakeOwnerMintTx
 ------------------------------------- Beacon Minting Policy ----------------------------------------
 
 beaconMintTx :: EncoinsProtocolParams -> TransactionBuilder ()
-beaconMintTx par = oneShotCurrencyMintTx (beaconMintParams par) $> ()
+beaconMintTx par = legacyOneShotCurrencyMintTx (beaconMintParams par) $> ()
 
 beaconSendTx :: EncoinsProtocolParams -> TransactionBuilder ()
 beaconSendTx par = utxoProducedTx
