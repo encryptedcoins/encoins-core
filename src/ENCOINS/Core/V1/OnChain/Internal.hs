@@ -22,7 +22,7 @@
 module ENCOINS.Core.V1.OnChain.Internal where
 
 import           Ledger.Typed.Scripts                           (IsScriptContext (..), Language (..), Versioned (..))
-import           Plutus.Script.Utils.V3.Scripts                 (MintingPolicy, StakeValidator, StakeValidatorHash, scriptCurrencySymbol,
+import           Plutus.Script.Utils.V2.Scripts                 (MintingPolicy, StakeValidator, StakeValidatorHash, scriptCurrencySymbol,
                                                                  stakeValidatorHash)
 import           PlutusLedgerApi.V2                             (BuiltinByteString, TxOut (txOutValue), TxOutRef, Value)
 import           PlutusTx                                       (compile, liftCode, unsafeApplyCode)
@@ -32,16 +32,14 @@ import           PlutusTx.Prelude                               (Bool (..), Eq (
 
 import           ENCOINS.BaseTypes                              (MintingPolarity)
 import           ENCOINS.Bulletproofs                           (Proof)
-import           ENCOINS.Orphans                                ()
 import           Ledger                                         (Address, mkStakeValidatorScript)
 import qualified Plutus.Script.Utils.Ada                        as P
-import           Plutus.Script.Utils.V3.Contexts                (ScriptContext (..), ScriptPurpose (..), TxInfo (..))
+import           Plutus.Script.Utils.V2.Contexts                (ScriptContext (..), ScriptPurpose (..), TxInfo (..))
 import           Plutus.Script.Utils.Value                      (AssetClass (..), CurrencySymbol, TokenName (..), adaSymbol, adaToken,
                                                                  assetClassValue, geq)
 import qualified Plutus.Script.Utils.Value                      as P
 import           PlutusAppsExtra.Constraints.OnChain            (utxoSpent)
 import           PlutusAppsExtra.Scripts.Legacy.OneShotCurrency (LegacyOneShotCurrencyParams (..), legacyOneShotCurrencyPolicy)
-import           PlutusAppsExtra.Utils.Orphans                  ()
 import           PlutusCore.Core                                (plcVersion100)
 
 -- StakeOwner reference, Beacon reference, verifierPKH, validator stake key

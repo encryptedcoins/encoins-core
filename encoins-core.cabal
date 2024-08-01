@@ -94,7 +94,8 @@ test-suite encoins-core-test
   Default-Language:     Haskell2010
   Hs-Source-Dirs:       test
   Main-Is:              Main.hs
-  Other-Modules:        Internal
+  Other-Modules:        BackwardsCompatibility
+                        Internal
                         Script
                         Tx
   Build-Depends:
@@ -119,6 +120,7 @@ test-suite encoins-core-test
     mtl                                      -any,
     plutus-apps-extra                        -any,
     plutus-apps-extra-test-utils             -any,
+    plutus-core                              -any,
     plutus-tx-plugin                         -any,
     plutus-tx                                -any,
     plutus-tx-extra                          -any,

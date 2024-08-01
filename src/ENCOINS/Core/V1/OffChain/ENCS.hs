@@ -14,7 +14,7 @@ module ENCOINS.Core.V1.OffChain.ENCS where
 import           Data.Functor                         (($>))
 import           Data.Text                            (Text)
 import           Ledger.Address                       (PaymentPubKeyHash (..), stakingCredential)
-import           PlutusLedgerApi.V3                   hiding (singleton)
+import           PlutusLedgerApi.V2                   hiding (singleton)
 import           PlutusTx.Prelude                     hiding (mapM, (<$>))
 
 import qualified Plutus.Script.Utils.Ada              as P

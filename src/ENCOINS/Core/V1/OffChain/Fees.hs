@@ -12,7 +12,7 @@ module ENCOINS.Core.V1.OffChain.Fees where
 
 import           ENCOINS.Core.V1.OffChain.Modes (EncoinsMode (..))
 import qualified Plutus.Script.Utils.Ada        as P
-import qualified PlutusLedgerApi.V3             as P
+import qualified PlutusLedgerApi.V2             as P
 import           PlutusTx.Prelude               hiding (mapM, (<$>), (<>))
 
 protocolFeeWalletMode :: Integer -> Integer

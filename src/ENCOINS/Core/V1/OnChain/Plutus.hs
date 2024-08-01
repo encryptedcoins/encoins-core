@@ -23,7 +23,7 @@ module ENCOINS.Core.V1.OnChain.Plutus where
 
 import           Ledger.Typed.Scripts                (IsScriptContext (..), Language (..), Versioned (..))
 import           Plutus.Script.Utils.V2.Scripts      (MintingPolicy, Validator, ValidatorHash, scriptCurrencySymbol, validatorHash)
-import           PlutusLedgerApi.V3
+import           PlutusLedgerApi.V2
 import           PlutusTx                            (compile, liftCode, unsafeApplyCode)
 import           PlutusTx.AssocMap                   (keys, lookup)
 import           PlutusTx.Extra.ByteString           (toBytes)

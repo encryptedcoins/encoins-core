@@ -28,6 +28,7 @@ import           System.Random                 (randomIO)
 import           Test.QuickCheck               (quickCheck)
 import           Text.Hex                      (decodeHex, encodeHex)
 
+import           BackwardsCompatibility
 import           ENCOINS.BaseTypes             (MintingPolarity (..), fromGroupElement, groupExp, groupGenerator)
 import           ENCOINS.Bulletproofs          (BulletproofSetup (..), Input (..), Proof (..), Randomness (..), Secret (..), bulletproof,
                                                 parseBulletproofParams)
@@ -45,6 +46,7 @@ main :: IO ()
 main = do
     writeEncoinsSetup
     hspec $ do
+        backwardsCompatibilitySpec
         scriptSpec
         txSpec
 

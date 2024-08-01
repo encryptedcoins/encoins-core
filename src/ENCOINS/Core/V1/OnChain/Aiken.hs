@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NoImplicitPrelude     #-}
+{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeFamilies          #-}
@@ -12,13 +13,13 @@ module ENCOINS.Core.V1.OnChain.Aiken where
 
 import           Ledger.Typed.Scripts               (Language (..), Versioned (..))
 import           Plutus.Script.Utils.V2.Scripts     (MintingPolicy, Validator, ValidatorHash, scriptCurrencySymbol, validatorHash)
-import           PlutusLedgerApi.V3
+import           PlutusLedgerApi.V2
 import           PlutusTx.AssocMap                  (keys, lookup)
 import           PlutusTx.Prelude
 
 import           Cardano.Ledger.Babbage             (Babbage)
-import           Cardano.Ledger.Conway              (Conway)
 import           Data.Bifunctor                     (Bifunctor (..))
+import           Data.Text                          (Text)
 import           ENCOINS.Core.V1.OnChain.Aiken.UPLC (encoinsPolicyCheck, ledgerValidatorCheck)
 import           ENCOINS.Core.V1.OnChain.Internal   (EncoinsInputOnChain, EncoinsLedgerValidatorParams, EncoinsPolicyParams,
                                                      EncoinsProtocolParams, EncoinsRedeemerOnChain, ProofHash, TxParams, encoinName,
@@ -71,8 +72,11 @@ hashRedeemer (a, b, c, _) = sha2_256 . serialiseData . toBuiltinData $ Aiken (a,
 encoinsPolicy :: EncoinsProtocolParams -> MintingPolicy
 encoinsPolicy = unsafeParameterizedMintingPolicyFromCBOR @PlutusV2 @Babbage encoinsPolicyCheck . Aiken . toEncoinsPolicyParams
 
+encoinsPolicyUplc :: Text
+encoinsPolicyUplc = ""
+
 encoinsPolicyV :: EncoinsProtocolParams -> Versioned MintingPolicy
-encoinsPolicyV = flip Versioned PlutusV1 . encoinsPolicy
+encoinsPolicyV = flip Versioned PlutusV2 . encoinsPolicy
 
 encoinsSymbol :: EncoinsProtocolParams -> CurrencySymbol
 encoinsSymbol = scriptCurrencySymbol . encoinsPolicy
@@ -89,7 +93,7 @@ encoinsInValue par = map unTokenName . maybe [] keys . lookup (encoinsSymbol par
 ------------------------------------- ENCOINS Ledger Validator --------------------------------------
 
 ledgerValidator :: EncoinsProtocolParams -> Validator
-ledgerValidator = unsafeParameterizedValidatorFromCBOR @PlutusV2 @Conway ledgerValidatorCheck . Aiken . encoinsSymbol
+ledgerValidator = unsafeParameterizedValidatorFromCBOR @PlutusV2 @Babbage ledgerValidatorCheck . Aiken . encoinsSymbol
 
 ledgerValidatorV :: EncoinsProtocolParams -> Versioned Validator
 ledgerValidatorV = flip Versioned PlutusV2 . ledgerValidator
@@ -99,7 +103,6 @@ ledgerValidatorHash = validatorHash . ledgerValidator
 
 ledgerValidatorStakeKey :: EncoinsProtocolParams -> StakingCredential
 ledgerValidatorStakeKey (_, _, _, stakeKeyBbs) = StakingHash $ PubKeyCredential $ PubKeyHash stakeKeyBbs
-
 
 ledgerValidatorAddress :: EncoinsProtocolParams -> Address
 ledgerValidatorAddress par = Address
